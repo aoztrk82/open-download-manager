@@ -9,6 +9,10 @@
   "action": { "default_popup": "popup.html", "default_title": "ODM" },
   "options_ui": { "page": "options.html", "open_in_tab": true },
   "browser_specific_settings": {
-    "gecko": { "id": "odm@open-download-manager.local", "strict_min_version": "115.0" }
+    "gecko": {
+      "id": "odm@open-download-manager.local",
+      "strict_min_version": "115.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
   }
 }

@@ -80,4 +80,13 @@ func (c *Client) Get(id string) (*store.Download, error) {
 
 func (c *Client) Pause(id string) error  { return c.do("POST", "/v1/downloads/"+id+"/pause", nil, nil) }
 func (c *Client) Resume(id string) error { return c.do("POST", "/v1/downloads/"+id+"/resume", nil, nil) }
-func (c *Client) Remove(id string) error { return c.do("DELETE", "/v1/downloads/"+id, nil, nil) }
+func (c *Client) Remove(id string) error { return c.RemoveFile(id, false) }
+
+// RemoveFile removes the download; deleteFile also deletes the file on the daemon's disk.
+func (c *Client) RemoveFile(id string, deleteFile bool) error {
+	p := "/v1/downloads/" + id
+	if deleteFile {
+		p += "?deleteFile=true"
+	}
+	return c.do("DELETE", p, nil, nil)
+}

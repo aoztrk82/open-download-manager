@@ -83,10 +83,51 @@ func TestFailedAndRemove(t *testing.T) {
 	if f.Error == "" {
 		t.Fatal("expected error message")
 	}
-	if err := m.Remove(d.ID); err != nil {
+	if err := m.Remove(d.ID, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := m.Get(d.ID); err != store.ErrNotFound {
 		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+}
+
+func TestRemoveDeletesFileOnRequest(t *testing.T) {
+	data := bytes.Repeat([]byte("x"), 300_000)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "d.bin", time.Time{}, bytes.NewReader(data))
+	}))
+	defer srv.Close()
+	dir := t.TempDir()
+	st, _ := store.Open(":memory:")
+	defer st.Close()
+	m := New(Config{DefaultDir: dir}, st, engine.New())
+	_ = m.Start()
+	defer m.Close()
+
+	keep, _ := m.Add(AddRequest{Request: proto.Request{URL: srv.URL + "/keep.bin"}})
+	del, _ := m.Add(AddRequest{Request: proto.Request{URL: srv.URL + "/del.bin"}})
+	k := waitStatus(t, m, keep.ID, store.Completed)
+	d := waitStatus(t, m, del.ID, store.Completed)
+	if d.Path != filepath.Join(dir, "del.bin") {
+		t.Fatalf("path not recorded: %q", d.Path)
+	}
+	if err := m.Remove(keep.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Remove(del.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(d.Path); os.IsNotExist(err) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if _, err := os.Stat(d.Path); !os.IsNotExist(err) {
+		t.Fatal("file should have been deleted")
+	}
+	if _, err := os.Stat(k.Path); err != nil {
+		t.Fatalf("file must be kept when deleteFile is false: %v", err)
 	}
 }

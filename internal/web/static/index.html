@@ -40,6 +40,14 @@
   .dropdown .item.check.on::before { content:"\2713"; position:absolute; left:8px; }
   .dropdown .sep { height:1px; background:var(--line); margin:4px 0; }
 
+  #menubar .spacer { flex:1; }
+  /* custom window controls: only shown inside the desktop app (frameless window) */
+  #winctl { display:flex; }
+  #winctl button { width:46px; border:0; background:none; cursor:default; display:flex; align-items:center; justify-content:center; }
+  #winctl button:hover { background:var(--hover); }
+  #winctl button.close:hover { background:#c42b1c; color:#fff; }
+  #winctl svg { width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:1; }
+
   /* toolbar */
   #toolbar { display:flex; align-items:center; gap:2px; background:var(--panel); border-bottom:1px solid var(--line); padding:4px 8px; flex-shrink:0; }
   .tb { display:flex; align-items:center; gap:6px; background:none; border:1px solid transparent; border-radius:3px; padding:4px 9px; cursor:pointer; }
@@ -99,7 +107,11 @@
   #ctx .dropdown { display:block; position:static; }
   .overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:flex-start; justify-content:center; padding-top:12vh; z-index:200; }
   .dialog { width:min(520px, 92vw); background:var(--panel); border:1px solid var(--line); box-shadow:0 8px 28px var(--shadow); }
-  .dialog h2 { margin:0; padding:10px 14px; font-size:13px; background:var(--bar); color:var(--fg-strong); }
+  .dialog h2 { margin:0; padding:0 0 0 14px; height:32px; font-size:13px; font-weight:600; background:var(--bar); color:var(--fg-strong);
+               display:flex; align-items:center; justify-content:space-between; }
+  .dialog h2 .x { width:40px; height:100%; border:0; background:none; cursor:pointer; font-size:14px; }
+  .dialog h2 .x:hover { background:#c42b1c; color:#fff; }
+  .btn:focus-visible, .dialog h2 .x:focus-visible { outline:1px solid var(--accent); outline-offset:-1px; }
   .dialog .body { padding:14px; display:flex; flex-direction:column; gap:10px; }
   .dialog label { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:12px; }
   .dialog input, .dialog textarea { background:var(--input); border:1px solid var(--line); border-radius:3px; padding:6px 8px; user-select:text; }
@@ -108,6 +120,8 @@
   .dialog .foot { display:flex; justify-content:flex-end; gap:8px; padding:10px 14px; border-top:1px solid var(--line); }
   .btn { padding:5px 16px; border:1px solid var(--line); border-radius:3px; background:var(--menu); cursor:pointer; }
   .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .dialog label.chk { flex-direction:row; align-items:center; gap:8px; color:var(--fg); font-size:13px; }
+  .dialog ul.names { margin:0; padding-left:18px; max-height:110px; overflow:auto; color:var(--muted); user-select:text; }
   .err { color:var(--bad); font-size:12px; min-height:16px; }
   #login .dialog { margin-top:8vh; }
 </style>
@@ -132,6 +146,7 @@
     <div class="item" data-act="remove"><span>Remove</span><span class="key">Del</span></div>
     <div class="sep"></div>
     <div class="item" data-act="copyUrl"><span>Copy URL</span><span class="key">Ctrl+C</span></div>
+    <div class="item" data-act="reveal" data-needs="reveal"><span>Show in Folder</span></div>
   </div></div>
   <div class="menu" data-menu="view"><div class="title">View</div><div class="dropdown">
     <div class="item check" data-act="toggleSidebar" id="m-sidebar"><span>Sidebar</span><span class="key">Ctrl+B</span></div>
@@ -146,6 +161,12 @@
   <div class="menu" data-menu="help"><div class="title">Help</div><div class="dropdown">
     <div class="item" data-act="about"><span>About ODM</span></div>
   </div></div>
+  <div class="spacer"></div>
+  <div id="winctl" hidden>
+    <button data-win="min" title="Minimize"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></button>
+    <button data-win="max" title="Maximize / Restore"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7"/></svg></button>
+    <button data-win="close" class="close" title="Close window (ODM keeps running in the tray)"><svg viewBox="0 0 10 10"><path d="M1 1l8 8M9 1l-8 8"/></svg></button>
+  </div>
 </div>
 
 <div id="toolbar">
@@ -200,8 +221,10 @@
   <div class="item" data-act="resume"><span>Resume</span></div>
   <div class="item" data-act="pause"><span>Pause</span></div>
   <div class="sep"></div>
+  <div class="item" data-act="reveal" data-needs="reveal"><span>Show in Folder</span></div>
   <div class="item" data-act="copyUrl"><span>Copy URL</span></div>
-  <div class="item" data-act="remove"><span>Remove</span><span class="key">Del</span></div>
+  <div class="sep"></div>
+  <div class="item" data-act="remove"><span>Remove…</span><span class="key">Del</span></div>
 </div></div>
 
 <div id="dlg" hidden></div>
@@ -359,6 +382,8 @@ function setConn() {
 /* ---------- actions ---------- */
 const selItems = () => items.filter(d => selected.has(d.id));
 async function each(list, fn) { for (const d of list) { try { await fn(d); } catch (e) { toast(e.message); } } refresh(); }
+// "Show in Folder" only makes sense when the daemon runs on this machine.
+const applyInfo = () => $$("[data-needs=reveal]").forEach(el => { el.hidden = !(info && info.canReveal); });
 const toast = msg => { $("s-dir").textContent = msg; setTimeout(() => { $("s-dir").textContent = dirLabel(); }, 4000); };
 const dirLabel = () => info ? "Saving to " + info.defaultDir : "";
 
@@ -366,7 +391,11 @@ const actions = {
   add: () => addDialog(),
   pause: () => each(selItems().filter(d => d.status === "active" || d.status === "queued"), d => api(`/downloads/${d.id}/pause`, { method:"POST" })),
   resume: () => each(selItems().filter(d => d.status === "paused" || d.status === "failed"), d => api(`/downloads/${d.id}/resume`, { method:"POST" })),
-  remove: () => { const l = selItems(); if (l.length) each(l, d => api(`/downloads/${d.id}`, { method:"DELETE" })); },
+  remove: () => confirmRemove(selItems()),
+  reveal: async () => {
+    const d = selItems()[0]; if (!d) return;
+    try { await api(`/downloads/${d.id}/reveal`, { method:"POST" }); } catch (e) { toast(e.message); }
+  },
   pauseAll: () => each(items.filter(d => d.status === "active" || d.status === "queued"), d => api(`/downloads/${d.id}/pause`, { method:"POST" })),
   resumeAll: () => each(items.filter(d => d.status === "paused"), d => api(`/downloads/${d.id}/resume`, { method:"POST" })),
   clearDone: () => each(items.filter(d => d.status === "completed"), d => api(`/downloads/${d.id}`, { method:"DELETE" })),
@@ -376,7 +405,7 @@ const actions = {
   toggleDetails: () => setPane("details", $("details").hidden),
   toggleStatus: () => setPane("statusbar", $("statusbar").hidden),
   theme: () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"),
-  signout: () => promptToken(),
+  signout: () => promptToken(true),
   about: () => aboutDialog(),
 };
 function setPane(id, show) { $(id).hidden = !show; store.set("odm.pane." + id, show ? "1" : "0"); syncChecks(); }
@@ -388,20 +417,36 @@ function syncChecks() {
 function setTheme(t) { document.documentElement.dataset.theme = t; store.set("odm.theme", t); }
 
 /* ---------- dialogs ---------- */
-function dialog(title, bodyHtml, buttons) {
+// Every dialog can be dismissed with the X button, Esc or a click outside, and
+// Enter in a single-line field submits the primary button. onClose runs on any dismissal.
+function dialog(title, bodyHtml, buttons, onClose) {
   const el = $("dlg");
   el.hidden = false;
-  el.innerHTML = `<div class="overlay"><div class="dialog" role="dialog"><h2>${esc(title)}</h2><div class="body">${bodyHtml}</div>
+  el.innerHTML = `<div class="overlay"><div class="dialog" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <h2><span>${esc(title)}</span><button class="x" aria-label="Close" title="Close (Esc)">✕</button></h2><div class="body">${bodyHtml}</div>
     <div class="foot">${buttons.map((b, i) => `<button class="btn${b.primary ? " primary" : ""}" data-i="${i}">${esc(b.label)}</button>`).join("")}</div></div></div>`;
-  const close = () => { el.hidden = true; el.innerHTML = ""; };
+  const close = () => { el.hidden = true; el.innerHTML = ""; el.onkeydown = null; };
+  const dismiss = () => { close(); if (onClose) onClose(); };
+  el.querySelector(".x").onclick = dismiss;
   el.querySelector(".foot").onclick = async e => {
     const b = e.target.closest("button"); if (!b) return;
     const spec = buttons[+b.dataset.i];
-    if (!spec.action || (await spec.action(el)) !== false) close();
+    if (!spec.action) return dismiss();          // plain buttons (Cancel/OK) just dismiss
+    if ((await spec.action(el)) !== false) close();
   };
-  el.querySelector(".overlay").onmousedown = e => { if (e.target.classList.contains("overlay") && !buttons.some(b => b.sticky)) close(); };
-  el.onkeydown = e => { if (e.key === "Escape" && !buttons.some(b => b.sticky)) close(); };
-  const first = el.querySelector("textarea,input"); if (first) first.focus();
+  const ov = el.querySelector(".overlay");
+  ov.onmousedown = e => { if (e.target === ov) dismiss(); };
+  el.onkeydown = e => {
+    if (e.key === "Escape") { e.stopPropagation(); dismiss(); }
+    else if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); el.querySelector(".btn.primary")?.click(); }
+    else if (e.key === "Tab") {                  // keep focus inside the dialog
+      const f = [...el.querySelectorAll("button,input,textarea")].filter(x => !x.disabled);
+      const i = f.indexOf(document.activeElement);
+      if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+    }
+  };
+  (el.querySelector("textarea,input") || el.querySelector(".btn.primary") || el.querySelector(".x")).focus();
   return close;
 }
 function addDialog() {
@@ -421,19 +466,36 @@ function addDialog() {
     } }]);
   $("dlg").querySelector("#d-urls").addEventListener("keydown", e => { if (e.key === "Enter" && e.ctrlKey) $("dlg").querySelector(".btn.primary").click(); });
 }
+// Persistent 401 failures re-open the token prompt on every poll; once the user
+// dismisses it we stay quiet until they ask again via Tools > Change Server Token.
+let tokenPromptMuted = false;
+function confirmRemove(list) {
+  if (!list.length) return;
+  const names = list.slice(0, 4).map(d => `<li>${esc(nameOf(d))}</li>`).join("") + (list.length > 4 ? `<li>…and ${list.length - 4} more</li>` : "");
+  dialog(list.length === 1 ? "Remove download" : `Remove ${list.length} downloads`,
+    `<div>Remove from the list?</div><ul class="names">${names}</ul>
+     <label class="chk"><input type="checkbox" id="r-file"> Also delete the downloaded file${list.length > 1 ? "s" : ""} from disk</label>`, [
+    { label:"Cancel" },
+    { label:"Remove", primary:true, action: async el => {
+      const del = el.querySelector("#r-file").checked;
+      await each(list, d => api(`/downloads/${d.id}${del ? "?deleteFile=true" : ""}`, { method:"DELETE" }));
+    } }]);
+}
 function aboutDialog() {
   dialog("About ODM", `<div>Open Download Manager ${esc(info ? info.version : "")}</div><div style="color:var(--muted)">HTTP(S) / FTP(S) segmented downloads with a shared local & remote server.</div>`, [{ label:"OK", primary:true }]);
 }
-function promptToken() {
+function promptToken(manual) {
+  if (manual) tokenPromptMuted = false;
+  if (tokenPromptMuted || !$("dlg").hidden) return;
   dialog("Connect to ODM", `<label>API token<input id="t-tok" type="password" autocomplete="current-password"></label><div class="err" id="t-err"></div>`, [
-    { label:"Connect", primary:true, sticky:true, action: async el => {
+    { label:"Cancel" },
+    { label:"Connect", primary:true, action: async el => {
       const t = el.querySelector("#t-tok").value.trim(); if (!t) return false;
       const old = token; token = t;
       try { info = await api("/info"); store.set("odm.token", t); }
       catch { token = old; el.querySelector("#t-err").textContent = "Invalid token."; return false; }
-      $("s-dir").textContent = dirLabel(); refresh();
-    } }]);
-  $("dlg").querySelector("#t-tok").addEventListener("keydown", e => { if (e.key === "Enter") $("dlg").querySelector(".btn.primary").click(); });
+      $("s-dir").textContent = dirLabel(); applyInfo(); refresh();
+    } }], () => { tokenPromptMuted = true; });
 }
 
 /* ---------- wiring ---------- */
@@ -483,6 +545,7 @@ $("tablewrap").addEventListener("contextmenu", e => {
 });
 // keyboard
 document.addEventListener("keydown", e => {
+  if (!$("dlg").hidden) return; // the dialog handles its own keys
   const typing = /INPUT|TEXTAREA/.test(document.activeElement.tagName);
   if (e.ctrlKey && e.key.toLowerCase() === "n") { e.preventDefault(); actions.add(); }
   else if (e.ctrlKey && e.key.toLowerCase() === "b") { e.preventDefault(); actions.toggleSidebar(); }
@@ -493,12 +556,23 @@ document.addEventListener("keydown", e => {
   else if (e.key === "Escape") { closeMenus(); hideCtx(); }
 });
 
+/* ---------- desktop app window (frameless) ---------- */
+// window.odmWin only exists inside the tray app's WebView2 window; in a normal
+// browser the OS provides the title bar, so these controls stay hidden.
+if (typeof window.odmWin === "function") {
+  $("winctl").hidden = false;
+  $("winctl").onclick = e => { const b = e.target.closest("[data-win]"); if (b) window.odmWin(b.dataset.win); };
+  const bar = $("menubar"), dragZone = e => e.target === bar || e.target.classList.contains("brand") || e.target.classList.contains("spacer");
+  bar.addEventListener("mousedown", e => { if (e.button === 0 && dragZone(e)) { e.preventDefault(); window.odmWin("drag"); } });
+  bar.addEventListener("dblclick", e => { if (dragZone(e)) window.odmWin("max"); });
+} else $("winctl").hidden = true;
+
 /* ---------- boot ---------- */
 async function start() {
   setTheme(store.get("odm.theme") || "dark");
   for (const id of ["sidebar", "details", "statusbar"]) if (store.get("odm.pane." + id) === "0") $(id).hidden = true;
   syncChecks(); setConn(); render();
-  try { info = await api("/info"); $("s-dir").textContent = dirLabel(); } catch { /* promptToken shown on 401 */ }
+  try { info = await api("/info"); $("s-dir").textContent = dirLabel(); applyInfo(); } catch { /* promptToken shown on 401 */ }
   refresh(); setInterval(refresh, 1000);
 }
 start();

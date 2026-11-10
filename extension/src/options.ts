@@ -1,4 +1,4 @@
-import { DEFAULTS, OdmClient, loadSettings, type Settings } from "./api";
+import { ext, DEFAULTS, OdmClient, loadSettings, type Settings } from "./api";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -22,7 +22,7 @@ function read(): Settings {
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const s = read();
-  await chrome.storage.local.set({ ...s });
+  await ext.storage.local.set({ ...s });
   const status = $("status");
   try {
     const info = await new OdmClient(s.serverUrl, s.token).info();

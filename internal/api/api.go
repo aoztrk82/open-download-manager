@@ -23,12 +23,16 @@ type Server struct {
 	Token      string
 	DefaultDir string
 	UI         fs.FS // optional; served at "/" without auth when non-nil
+	// Reveal shows a file in the OS file manager. Only set for the local daemon:
+	// on a remote server it would open a window on the server, not on the client.
+	Reveal func(path string) error
 }
 
 type Info struct {
 	Name       string `json:"name"`
 	Version    string `json:"version"`
 	DefaultDir string `json:"defaultDir"`
+	CanReveal  bool   `json:"canReveal"`
 }
 
 func (s *Server) Handler() http.Handler {
@@ -39,7 +43,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/downloads/{id}", s.get)
 	mux.HandleFunc("POST /v1/downloads/{id}/pause", s.act(s.Queue.Pause))
 	mux.HandleFunc("POST /v1/downloads/{id}/resume", s.act(s.Queue.Resume))
-	mux.HandleFunc("DELETE /v1/downloads/{id}", s.act(s.Queue.Remove))
+	mux.HandleFunc("POST /v1/downloads/{id}/reveal", s.reveal)
+	mux.HandleFunc("DELETE /v1/downloads/{id}", s.remove)
 	mux.HandleFunc("GET /v1/events", s.events)
 	if s.UI != nil {
 		mux.Handle("/", http.FileServerFS(s.UI))
@@ -87,7 +92,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 }
 
 func (s *Server) info(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.DefaultDir})
+	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.DefaultDir, CanReveal: s.Reveal != nil})
 }
 
 func (s *Server) list(w http.ResponseWriter, r *http.Request) {
@@ -137,6 +142,35 @@ func (s *Server) act(fn func(string) error) http.HandlerFunc {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
+	if err := s.Queue.Remove(r.PathValue("id"), r.URL.Query().Get("deleteFile") == "true"); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) reveal(w http.ResponseWriter, r *http.Request) {
+	if s.Reveal == nil {
+		writeErr(w, http.StatusNotImplemented, "show in folder is only available on the local daemon")
+		return
+	}
+	d, err := s.Queue.Get(r.PathValue("id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	path := d.State.Path
+	if path == "" {
+		path = d.Dir
+	}
+	if err := s.Reveal(path); err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 var upgrader = websocket.Upgrader{

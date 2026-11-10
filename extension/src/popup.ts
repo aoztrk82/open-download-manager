@@ -1,4 +1,4 @@
-import { clientFromSettings, loadSettings } from "./api";
+import { ext, clientFromSettings, loadSettings } from "./api";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -40,18 +40,35 @@ async function refresh() {
   }
 }
 
+async function showLast() {
+  const { lastEvent } = (await ext.storage.local.get("lastEvent")) as {
+    lastEvent?: { t: number; ok: boolean; msg: string };
+  };
+  const el = $("last");
+  if (!lastEvent) {
+    el.textContent = "No downloads captured yet.";
+    return;
+  }
+  el.textContent = `${new Date(lastEvent.t).toLocaleTimeString()} - ${lastEvent.msg}`;
+  el.className = lastEvent.ok ? "ok" : "bad";
+}
+
 async function init() {
   const s = await loadSettings();
   const toggle = $<HTMLInputElement>("enabled");
   toggle.checked = s.enabled;
-  toggle.addEventListener("change", () => chrome.storage.local.set({ enabled: toggle.checked }));
+  toggle.addEventListener("change", () => ext.storage.local.set({ enabled: toggle.checked }));
   $("open").addEventListener("click", async () => {
     const cur = await loadSettings();
-    chrome.tabs.create({ url: cur.serverUrl });
+    ext.tabs.create({ url: cur.serverUrl });
   });
-  $("settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
+  $("settings").addEventListener("click", () => ext.runtime.openOptionsPage());
   refresh();
-  setInterval(refresh, 1500);
+  showLast();
+  setInterval(() => {
+    refresh();
+    showLast();
+  }, 1500);
 }
 
 init();

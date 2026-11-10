@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"unsafe"
 
 	"github.com/getlantern/systray"
 	"github.com/jchv/go-webview2"
@@ -80,7 +81,7 @@ func runTray() error {
 		return spawnSelf("window")
 	}
 	d, err := startDaemon(daemonOpts{
-		Addr: "127.0.0.1:" + strconv.Itoa(config.DefaultPort), Token: cl.Token,
+		Addr: "127.0.0.1:" + strconv.Itoa(config.DefaultPort), Token: cl.Token, Reveal: true,
 	})
 	if err != nil {
 		return err
@@ -191,9 +192,92 @@ func runWindow() error {
 		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 	}
 	defer w.Destroy()
+	makeFrameless(w, user32)
 	w.Navigate(url)
 	w.Run()
 	return nil
+}
+
+// ---- frameless window ----
+
+const (
+	gwlStyle        = ^uintptr(15) // -16
+	wsCaption       = 0xC00000
+	swpFlags        = 0x0002 | 0x0001 | 0x0004 | 0x0020 // NOMOVE|NOSIZE|NOZORDER|FRAMECHANGED
+	wmNCLButtonDown = 0x00A1
+	htCaption       = 2
+	wmClose         = 0x0010
+	swMinimize      = 6
+)
+
+type rect struct{ Left, Top, Right, Bottom int32 }
+
+// makeFrameless drops the native title bar (the Web UI draws its own in the
+// menu bar, like VS Code) but keeps WS_THICKFRAME so edges still resize, and
+// exposes window.odmWin("min"|"max"|"close"|"drag") to the page.
+func makeFrameless(w webview2.WebView, user32 *windows.LazyDLL) {
+	hwnd := uintptr(w.Window())
+	getLong, setLong := user32.NewProc("GetWindowLongPtrW"), user32.NewProc("SetWindowLongPtrW")
+	setPos, showWin := user32.NewProc("SetWindowPos"), user32.NewProc("ShowWindow")
+	getRect, getCursor := user32.NewProc("GetWindowRect"), user32.NewProc("GetCursorPos")
+	releaseCap, sendMsg, postMsg := user32.NewProc("ReleaseCapture"), user32.NewProc("SendMessageW"), user32.NewProc("PostMessageW")
+
+	style, _, _ := getLong.Call(hwnd, gwlStyle)
+	setLong.Call(hwnd, gwlStyle, style&^wsCaption)
+	setPos.Call(hwnd, 0, 0, 0, 0, 0, swpFlags)
+
+	// A frameless WS_THICKFRAME window overshoots the monitor by the border
+	// width when maximized by the system, so maximize manually to the work area.
+	var maximized bool
+	var restore rect
+	monFromWin, monInfo := user32.NewProc("MonitorFromWindow"), user32.NewProc("GetMonitorInfoW")
+	workArea := func() rect {
+		mon, _, _ := monFromWin.Call(hwnd, 2) // MONITOR_DEFAULTTONEAREST
+		var mi struct {
+			Size          uint32
+			Monitor, Work rect
+			Flags         uint32
+		}
+		mi.Size = uint32(unsafe.Sizeof(mi))
+		monInfo.Call(mon, uintptr(unsafe.Pointer(&mi)))
+		return mi.Work
+	}
+	place := func(r rect) {
+		setPos.Call(hwnd, 0, uintptr(r.Left), uintptr(r.Top), uintptr(r.Right-r.Left), uintptr(r.Bottom-r.Top), 0x0004) // NOZORDER
+	}
+	toggleMax := func() {
+		if maximized {
+			maximized = false
+			place(restore)
+			return
+		}
+		getRect.Call(hwnd, uintptr(unsafe.Pointer(&restore)))
+		maximized = true
+		place(workArea())
+	}
+
+	_ = w.Bind("odmWin", func(action string) {
+		switch action {
+		case "min":
+			showWin.Call(hwnd, swMinimize)
+		case "max":
+			toggleMax()
+		case "close":
+			postMsg.Call(hwnd, wmClose, 0, 0)
+		case "drag":
+			if maximized { // dragging a maximized window restores it under the cursor
+				var pt struct{ X, Y int32 }
+				getCursor.Call(uintptr(unsafe.Pointer(&pt)))
+				maximized = false
+				width, height := restore.Right-restore.Left, restore.Bottom-restore.Top
+				restore.Left, restore.Top = pt.X-width/2, pt.Y-15
+				restore.Right, restore.Bottom = restore.Left+width, restore.Top+height
+				place(restore)
+			}
+			releaseCap.Call()
+			sendMsg.Call(hwnd, wmNCLButtonDown, htCaption, 0)
+		}
+	})
 }
 
 // ---- icon ----

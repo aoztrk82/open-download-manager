@@ -37,6 +37,7 @@ double-clicking odm.exe instead starts the tray app.
 				local = true
 			}
 			o.Addr = listen
+			o.Reveal = local
 			if local {
 				o.Addr = "127.0.0.1:" + strconv.Itoa(config.DefaultPort)
 				if o.Token == "" {

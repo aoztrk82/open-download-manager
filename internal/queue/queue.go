@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"os"
 	"sync"
 	"time"
 
@@ -149,7 +150,13 @@ func (m *Manager) Resume(id string) error {
 	return nil
 }
 
-func (m *Manager) Remove(id string) error {
+// Remove drops a download from the list; with deleteFile it also deletes the
+// downloaded file (or the partial .part file) from disk.
+func (m *Manager) Remove(id string, deleteFile bool) error {
+	d, err := m.store.Get(id)
+	if err != nil {
+		return err
+	}
 	m.mu.Lock()
 	if cancel, ok := m.active[id]; ok {
 		cancel()
@@ -159,7 +166,21 @@ func (m *Manager) Remove(id string) error {
 		return err
 	}
 	m.publish(Event{Type: "removed", ID: id})
+	if deleteFile && d.State.Path != "" {
+		go removeFile(d.State.Path)
+	}
 	return nil
+}
+
+// removeFile retries for a while: a cancelled worker may still hold the file
+// open for a moment, and Windows refuses to delete open files.
+func removeFile(path string) {
+	for i := 0; i < 25; i++ {
+		if err := os.Remove(path); err == nil || os.IsNotExist(err) {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 func (m *Manager) setStatus(id string, s store.Status) error {
@@ -245,7 +266,7 @@ func (m *Manager) schedule(workers *sync.WaitGroup) {
 }
 
 func (m *Manager) run(ctx context.Context, d *store.Download) {
-	last := time.Now()
+	var last time.Time // zero: the first progress callback persists the file path right away
 	err := m.engine.Run(ctx, &d.State, engine.Options{
 		Req: d.Req, Dir: d.Dir, Filename: d.Filename,
 		Connections: m.cfg.Connections, RateLimit: m.cfg.RateLimit,
@@ -254,7 +275,7 @@ func (m *Manager) run(ctx context.Context, d *store.Download) {
 		if d.Filename == "" {
 			d.Filename = s.Filename
 		}
-		d.State = s // always keep the latest so the final save is complete
+		d.State, d.Path = s, s.Path // always keep the latest so the final save is complete
 		c := *d     // subscribers get a copy; d keeps mutating
 		m.publish(Event{Type: "update", Download: &c})
 		if time.Since(last) >= time.Second { // persist ~1/s
@@ -271,7 +292,7 @@ func (m *Manager) run(ctx context.Context, d *store.Download) {
 	switch {
 	case err == nil:
 		d.Status, d.Error = store.Completed, ""
-		d.Size, d.Downloaded = d.State.Size, d.State.Downloaded()
+		d.Size, d.Downloaded, d.Path = d.State.Size, d.State.Downloaded(), d.State.Path
 	case ctx.Err() != nil && m.ctx.Err() != nil:
 		d.Status = store.Queued // shutdown: resume on next start
 	case ctx.Err() != nil && cur != nil && cur.Status == store.Paused:

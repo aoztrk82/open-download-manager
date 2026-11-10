@@ -43,7 +43,7 @@ func main() {
 	root.AddCommand(serveCmd(), addCmd(), listCmd(), watchCmd(),
 		simpleCmd("pause", "Pause a download", (*api.Client).Pause),
 		simpleCmd("resume", "Resume a download", (*api.Client).Resume),
-		simpleCmd("rm", "Remove a download from the list", (*api.Client).Remove))
+		rmCmd())
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -230,4 +230,25 @@ func human(n int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+func rmCmd() *cobra.Command {
+	var deleteFile bool
+	c := &cobra.Command{
+		Use: "rm <id>...", Short: "Remove a download from the list", Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cl, err := client()
+			if err != nil {
+				return err
+			}
+			for _, id := range args {
+				if err := cl.RemoveFile(id, deleteFile); err != nil {
+					return fmt.Errorf("%s: %w", id, err)
+				}
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&deleteFile, "delete-file", false, "also delete the downloaded file from disk")
+	return c
 }

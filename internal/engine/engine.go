@@ -31,6 +31,7 @@ type State struct {
 	Size         int64     `json:"size"` // -1 unknown, 0 not yet probed
 	AcceptRanges bool      `json:"acceptRanges"`
 	Filename     string    `json:"filename"`
+	Path         string    `json:"path,omitempty"` // .part while running, final file when done
 	Segments     []Segment `json:"segments"`
 }
 
@@ -100,6 +101,7 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 	}
 	final := filepath.Join(o.Dir, name)
 	part := final + ".part"
+	st.Path = part
 
 	f, err := os.OpenFile(part, os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
@@ -195,7 +197,12 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 	if st.Size <= 0 {
 		st.Size = st.Downloaded()
 	}
-	return os.Rename(part, uniquePath(final, part))
+	dest := uniquePath(final, part)
+	if err := os.Rename(part, dest); err != nil {
+		return err
+	}
+	st.Path = dest
+	return nil
 }
 
 func plan(info proto.Info, o Options) []Segment {

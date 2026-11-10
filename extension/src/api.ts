@@ -1,5 +1,11 @@
 // Minimal client for the ODM HTTP API (same protocol the Go CLI and Web UI use).
 
+// Firefox exposes a promise-based `browser` namespace; its `chrome` namespace is
+// callback-based there, so `await chrome.storage.local.get()` can yield undefined.
+// Chrome has no `browser`, and its `chrome.*` calls return promises in MV3.
+export const ext: typeof chrome =
+  (globalThis as unknown as { browser?: typeof chrome }).browser ?? chrome;
+
 export interface Settings {
   enabled: boolean;
   serverUrl: string;
@@ -63,7 +69,7 @@ export class OdmClient {
 }
 
 export async function loadSettings(): Promise<Settings> {
-  const s = await chrome.storage.local.get({ ...DEFAULTS });
+  const s = await ext.storage.local.get({ ...DEFAULTS });
   return s as Settings;
 }
 

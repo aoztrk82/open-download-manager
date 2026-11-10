@@ -23,6 +23,7 @@ type daemonOpts struct {
 	Connections int
 	RateLimit   int64
 	NoUI        bool
+	Reveal      bool // allow "show in folder" (local daemon only)
 }
 
 // daemon is a running queue + HTTP API. Shared by `odm serve` and the tray app.
@@ -56,6 +57,9 @@ func startDaemon(o daemonOpts) (*daemon, error) {
 	srv := &api.Server{Queue: q, Token: o.Token, DefaultDir: o.Dir}
 	if !o.NoUI {
 		srv.UI = web.FS()
+	}
+	if o.Reveal {
+		srv.Reveal = revealInFolder
 	}
 	ln, err := net.Listen("tcp", o.Addr)
 	if err != nil {

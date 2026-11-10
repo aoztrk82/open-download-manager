@@ -29,6 +29,7 @@ type Download struct {
 	Req        proto.Request `json:"request"`
 	Dir        string        `json:"dir"`
 	Filename   string        `json:"filename"`
+	Path       string        `json:"path,omitempty"`
 	Status     Status        `json:"status"`
 	Size       int64         `json:"size"`
 	Downloaded int64         `json:"downloaded"`
@@ -110,6 +111,7 @@ func scan(sc interface{ Scan(...any) error }) (*Download, error) {
 	d.Status = Status(status)
 	_ = json.Unmarshal([]byte(req), &d.Req)
 	_ = json.Unmarshal([]byte(st), &d.State)
+	d.Path = d.State.Path
 	d.CreatedAt, d.UpdatedAt = time.UnixMilli(created), time.UnixMilli(updated)
 	return &d, nil
 }
