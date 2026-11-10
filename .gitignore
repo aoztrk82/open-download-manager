@@ -1,4 +1,33 @@
-odm.exe
-*.part
-node_modules/
+# Build output
+/odm.exe
+/odm
+/dist/
 extension/dist/
+*.exe
+*.test
+*.out
+
+# Downloads in progress / test artifacts
+*.part
+/tmp/
+/testdata/downloads/
+
+# Local databases and per-user state (the daemon keeps these in %APPDATA%\odm, not the repo)
+*.db
+*.db-wal
+*.db-shm
+
+# Node
+node_modules/
+extension/*.log
+.pnpm-store/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code: personal settings stay local, shared skills are committed
+.claude/settings.local.json
+.claude/scratch/

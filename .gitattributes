@@ -1,0 +1,8 @@
+# Normalize line endings (git was warning "LF will be replaced by CRLF" on every commit).
+* text=auto
+*.go text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.exe binary
