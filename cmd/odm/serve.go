@@ -26,8 +26,8 @@ func serveCmd() *cobra.Command {
 		Long: `Run the download daemon in the foreground. This is the headless server mode;
 double-clicking odm.exe instead starts the tray app.
 
-  odm serve --local                 listen on 127.0.0.1 only; token is read from / written to
-                                    the per-user config dir (used by the CLI and extensions)
+  odm serve --local                 listen on 127.0.0.1 only, no token needed (used by the
+                                    CLI and the browser extensions on a desktop)
   odm serve --listen :6800 --token  listen on all interfaces; token is mandatory`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if local && listen != "" {
@@ -39,14 +39,9 @@ double-clicking odm.exe instead starts the tray app.
 			o.Addr = listen
 			o.Reveal = local
 			if local {
+				// No token locally: the API only answers loopback requests from
+				// the CLI, our own pages and browser extensions.
 				o.Addr = "127.0.0.1:" + strconv.Itoa(config.DefaultPort)
-				if o.Token == "" {
-					t, err := config.LoadOrCreateToken()
-					if err != nil {
-						return err
-					}
-					o.Token = t
-				}
 			} else if o.Token == "" {
 				if o.Token = os.Getenv("ODM_TOKEN"); o.Token == "" {
 					return errors.New("--token (or ODM_TOKEN) is required for server mode")

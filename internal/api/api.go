@@ -7,7 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"mime"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -60,11 +63,25 @@ func (s *Server) auth(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		if s.Token == "" {
+			// Local mode: no secret, so the only protection against hostile web
+			// pages is refusing anything that is not clearly us or the CLI.
+			if !loopbackHost(r.Host) {
+				writeErr(w, http.StatusForbidden, "host not allowed") // DNS rebinding
+				return
+			}
+			if o := r.Header.Get("Origin"); o != "" && !originTrusted(o, r.Host) {
+				writeErr(w, http.StatusForbidden, "origin not allowed")
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
 		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if tok == "" {
 			tok = r.URL.Query().Get("token")
 		}
-		if s.Token == "" || subtle.ConstantTimeCompare([]byte(tok), []byte(s.Token)) != 1 {
+		if subtle.ConstantTimeCompare([]byte(tok), []byte(s.Token)) != 1 {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			writeErr(w, http.StatusUnauthorized, "invalid or missing token")
 			return
@@ -73,11 +90,40 @@ func (s *Server) auth(next http.Handler) http.Handler {
 	})
 }
 
-// cors lets extensions and the Web UI call the API cross-origin. This is safe
-// because every /v1 call still requires the secret bearer token.
+// loopbackHost reports whether a Host header names this machine.
+func loopbackHost(hostport string) bool {
+	h := hostport
+	if hh, _, err := net.SplitHostPort(hostport); err == nil {
+		h = hh
+	}
+	h = strings.Trim(h, "[]")
+	return h == "127.0.0.1" || h == "localhost" || h == "::1"
+}
+
+// originTrusted decides which browser origins may talk to a token-less local
+// daemon: our own pages (same origin) and browser extensions. Extensions are
+// allowed by scheme because Firefox's moz-extension host is a random per-install
+// UUID. Everything else, including the literal "null", is rejected.
+func originTrusted(origin, host string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || origin == "null" {
+		return false
+	}
+	switch u.Scheme {
+	case "chrome-extension", "moz-extension", "safari-web-extension":
+		return u.Host != ""
+	case "http":
+		return u.Host == host && loopbackHost(u.Host)
+	}
+	return false
+}
+
+// cors lets extensions and the Web UI call the API cross-origin. With a token
+// every /v1 call is authenticated; without one, headers are only emitted for
+// trusted origins so hostile pages cannot even pass the preflight.
 func (s *Server) cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if o := r.Header.Get("Origin"); o != "" {
+		if o := r.Header.Get("Origin"); o != "" && (s.Token != "" || originTrusted(o, r.Host)) {
 			w.Header().Set("Access-Control-Allow-Origin", o)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
@@ -117,6 +163,12 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) add(w http.ResponseWriter, r *http.Request) {
+	// Refuse form-encoded/text/plain bodies: those are what a hostile page can
+	// send cross-origin without a preflight.
+	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
+		writeErr(w, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		return
+	}
 	var req queue.AddRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		writeErr(w, 400, "bad json: "+err.Error())

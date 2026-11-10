@@ -4,15 +4,12 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/aoztrk82/open-download-manager/internal/api"
-	"github.com/aoztrk82/open-download-manager/internal/config"
 	"github.com/aoztrk82/open-download-manager/internal/proto"
 	"github.com/aoztrk82/open-download-manager/internal/queue"
 	"github.com/aoztrk82/open-download-manager/internal/store"
@@ -24,6 +21,11 @@ var (
 )
 
 func main() {
+	// Browsers launch the native-messaging host as `odm.exe <origin>` /
+	// `odm.exe <manifest.json> <id>`: they cannot pass a subcommand.
+	if isNativeHostLaunch(os.Args) {
+		os.Exit(runNativeHostMain())
+	}
 	// Cobra refuses to run when launched from Explorer ("This is a command line
 	// tool"). Double-clicking is exactly how the tray app is started.
 	cobra.MousetrapHelpText = ""
@@ -36,7 +38,7 @@ func main() {
 	root.PersistentFlags().StringVar(&serverURL, "server", envOr("ODM_SERVER", ""),
 		"daemon URL (default: local daemon, auto-started; env ODM_SERVER)")
 	root.PersistentFlags().StringVar(&token, "token", envOr("ODM_TOKEN", ""),
-		"API token (default: local token file; env ODM_TOKEN)")
+		"API token for a remote --server (local daemon needs none; env ODM_TOKEN)")
 	rootRun, guiCmds := guiCommands()
 	root.RunE = rootRun // no arguments (double-click) -> tray app on Windows
 	root.AddCommand(guiCmds...)
@@ -61,40 +63,13 @@ func envOr(k, def string) string {
 // remote --server was given.
 func client() (*api.Client, error) {
 	if serverURL != "" {
-		if token == "" {
-			return nil, fmt.Errorf("--token (or ODM_TOKEN) is required with --server")
-		}
-		return api.NewClient(serverURL, token), nil
+		return api.NewClient(serverURL, token), nil // a remote server answers 401 if it needs a token
 	}
-	tok := token
-	if tok == "" {
-		t, err := config.LoadOrCreateToken()
-		if err != nil {
-			return nil, err
-		}
-		tok = t
-	}
-	c := api.NewClient("http://127.0.0.1:"+strconv.Itoa(config.DefaultPort), tok)
-	if _, err := c.Info(); err == nil {
-		return c, nil
-	}
-	exe, err := os.Executable()
-	if err != nil {
+	c := api.NewClient(localURL(), "")
+	if err := ensureLocalDaemon(c); err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(exe, "serve", "--local")
-	detach(cmd)
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("starting local daemon: %w", err)
-	}
-	_ = cmd.Process.Release()
-	for i := 0; i < 50; i++ {
-		time.Sleep(100 * time.Millisecond)
-		if _, err := c.Info(); err == nil {
-			return c, nil
-		}
-	}
-	return nil, fmt.Errorf("local daemon did not start; run `odm serve --local` to see why")
+	return c, nil
 }
 
 func addCmd() *cobra.Command {

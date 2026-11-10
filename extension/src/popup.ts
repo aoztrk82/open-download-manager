@@ -1,4 +1,4 @@
-import { ext, clientFromSettings, loadSettings } from "./api";
+import { LOCAL_URL, ensureLocal, ext, loadSettings, localClient } from "./api";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -16,7 +16,7 @@ function human(n: number) {
 async function refresh() {
   const list = $("list");
   try {
-    const odm = await clientFromSettings();
+    const odm = localClient();
     const items = (await odm.list()).reverse().slice(0, 15);
     list.replaceChildren(
       ...items.map((d) => {
@@ -34,9 +34,11 @@ async function refresh() {
     );
     if (!items.length) list.textContent = "No downloads yet.";
     $("err").textContent = "";
+    $("start").hidden = true;
   } catch (e) {
     list.replaceChildren();
-    $("err").textContent = `Cannot reach ODM: ${(e as Error).message}. Check settings.`;
+    $("err").textContent = `ODM is not running (${(e as Error).message}).`;
+    $("start").hidden = false;
   }
 }
 
@@ -58,9 +60,16 @@ async function init() {
   const toggle = $<HTMLInputElement>("enabled");
   toggle.checked = s.enabled;
   toggle.addEventListener("change", () => ext.storage.local.set({ enabled: toggle.checked }));
-  $("open").addEventListener("click", async () => {
-    const cur = await loadSettings();
-    ext.tabs.create({ url: cur.serverUrl });
+  $("open").addEventListener("click", () => ext.tabs.create({ url: LOCAL_URL }));
+  $("start").addEventListener("click", async () => {
+    $("err").textContent = "Starting ODM...";
+    try {
+      await ensureLocal();
+    } catch (e) {
+      $("err").textContent = (e as Error).message;
+      return;
+    }
+    refresh();
   });
   $("settings").addEventListener("click", () => ext.runtime.openOptionsPage());
   refresh();

@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>ODM - Where to download?</title>
+<style>
+  :root { --bg:#fff; --fg:#222; --muted:#6b7280; --line:#d4d4d8; --accent:#0e639c; --bad:#c72e0f; --ok:#16825d; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1e1e1e; --fg:#ddd; --muted:#9aa3af; --line:#3c3c3c; --accent:#3794d4; --bad:#f48771; --ok:#4ec9b0; } }
+  body { margin:0; padding:18px; background:var(--bg); color:var(--fg); font:14px system-ui, sans-serif; }
+  h1 { font-size:13px; font-weight:600; color:var(--muted); margin:0 0 10px; text-transform:uppercase; letter-spacing:.06em; }
+  .what { font-size:16px; font-weight:600; overflow-wrap:anywhere; }
+  .from { color:var(--muted); margin-bottom:16px; }
+  button { display:flex; align-items:baseline; gap:10px; width:100%; text-align:left; padding:10px 12px; margin-bottom:8px;
+           border:1px solid var(--line); border-radius:6px; background:none; color:inherit; font:inherit; cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--accent); }
+  button:focus-visible { outline:2px solid var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  button.primary { border-color:var(--accent); }
+  button b { flex:1; } button small { color:var(--muted); }
+  kbd { color:var(--muted); font:12px ui-monospace, monospace; }
+  #status { min-height:18px; margin-top:4px; font-size:12px; color:var(--muted); }
+  #status.bad { color:var(--bad); }
+  [hidden] { display:none !important; }
+</style></head>
+<body>
+<h1>ODM - where to download?</h1>
+<div class="what" id="what"></div>
+<div class="from" id="from"></div>
+<button id="btn-local" class="primary"><b>This computer</b><small>local ODM</small><kbd>1</kbd></button>
+<button id="btn-remote"><b>Server</b><small id="remote-label"></small><kbd>2</kbd></button>
+<button id="btn-browser"><b>Let the browser download it</b><small>no ODM</small><kbd>3</kbd></button>
+<div id="status"></div>
+<script src="choose.js" type="module"></script>
+</body></html>

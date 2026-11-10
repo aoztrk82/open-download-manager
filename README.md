@@ -29,7 +29,7 @@ cd extension && pnpm install && pnpm build
 ```
 
 Load `extension/dist/chrome` (chrome://extensions, Developer mode, Load unpacked) or `extension/dist/firefox`
-(about:debugging, Load Temporary Add-on, pick `manifest.json`). In the extension settings enter the ODM URL and token.
+(about:debugging, Load Temporary Add-on, pick `manifest.json`). Run `odm.exe` once so it registers the browser integration; after that the extension can start ODM by itself. No setup is needed for local downloads. Add a server URL + token in the extension settings and each captured download asks: this computer or the server.
 
 ## Layout
 

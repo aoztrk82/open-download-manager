@@ -7,7 +7,12 @@ for (const target of ["chrome", "firefox"]) {
   const out = `dist/${target}`;
   mkdirSync(out, { recursive: true });
   await build({
-    entryPoints: { background: "src/background.ts", popup: "src/popup.ts", options: "src/options.ts" },
+    entryPoints: {
+      background: "src/background.ts",
+      popup: "src/popup.ts",
+      options: "src/options.ts",
+      choose: "src/choose.ts",
+    },
     outdir: out,
     bundle: true,
     format: "esm",

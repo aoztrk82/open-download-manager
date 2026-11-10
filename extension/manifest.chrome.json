@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7q1hCMFdnB6UUa2CTQW2IN4JTOnAH5nYwUVua36+o2ruDzbanh4NF/S8LwgZ4mjjGsLZhMtQn2/U3VtoGVpMMHHRrG8eT6JsKl+Dh8GeEiD29EkT7RXj91Bfz1fj9gkHwdfMJsNaSIALyexBrb53KaTHl3rC0O5m5Q13PlcO+E7pl4P1Xq5Dr3gaeDBwdckSKGSgmtyZdOfRBe+thE1j+1nGYkaLxj5e7K2kJ+o2D+swvgOsqSAf/hA2tXI8GJbELBaU2C4/m/NUa6v13Ej47qodfINBpWI0srVDXkxJA/QrS7B+mb2+n+FTbuAVU50fIy3zNIGJj0IAkilZiIReBQIDAQAB",
   "name": "ODM - Open Download Manager",
   "version": "0.1.0",
   "description": "Send browser downloads to your Open Download Manager (local or remote).",
-  "permissions": ["downloads", "storage", "cookies", "contextMenus"],
+  "permissions": ["downloads", "storage", "cookies", "contextMenus", "nativeMessaging"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": { "default_popup": "popup.html", "default_title": "ODM" },

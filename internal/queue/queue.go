@@ -276,7 +276,7 @@ func (m *Manager) run(ctx context.Context, d *store.Download) {
 			d.Filename = s.Filename
 		}
 		d.State, d.Path = s, s.Path // always keep the latest so the final save is complete
-		c := *d     // subscribers get a copy; d keeps mutating
+		c := *d                     // subscribers get a copy; d keeps mutating
 		m.publish(Event{Type: "update", Download: &c})
 		if time.Since(last) >= time.Second { // persist ~1/s
 			last = time.Now()

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/getlantern/systray"
@@ -36,8 +37,10 @@ func guiCommands() (func(*cobra.Command, []string) error, []*cobra.Command) {
 		// and the tray app survives its parent.
 		return spawnSelf("tray")
 	}
+	var background bool
 	tray := &cobra.Command{Use: "tray", Hidden: true, Short: "Tray app (daemon + notification-area icon)",
-		RunE: func(*cobra.Command, []string) error { return runTray() }}
+		RunE: func(*cobra.Command, []string) error { return runTray(background) }}
+	tray.Flags().BoolVar(&background, "background", false, "start without showing the window")
 	win := &cobra.Command{Use: "window", Hidden: true, Short: "Open the ODM window",
 		RunE: func(*cobra.Command, []string) error { return runWindow() }}
 	return launch, []*cobra.Command{tray, win}
@@ -48,41 +51,33 @@ func spawnSelf(args ...string) error {
 	if err != nil {
 		return err
 	}
-	c := exec.Command(exe, args...)
-	detach(c)
-	if len(args) > 0 && args[0] == "window" {
-		// detach() sets HideWindow, and Windows applies that to the process's
-		// first ShowWindow call, which would keep the GUI window invisible.
-		c.SysProcAttr.HideWindow = false
-	}
-	if err := c.Start(); err != nil {
-		return err
-	}
-	return c.Process.Release()
+	// HideWindow is applied by Windows to the process's first ShowWindow call,
+	// so it must stay off for the GUI window or that window would be invisible.
+	return startDetached(exe, !(len(args) > 0 && args[0] == "window"), args...)
 }
 
-func localClient() (*api.Client, error) {
-	tok, err := config.LoadOrCreateToken()
-	if err != nil {
-		return nil, err
-	}
-	return api.NewClient("http://127.0.0.1:"+strconv.Itoa(config.DefaultPort), tok), nil
-}
+// startLocalDaemon starts the tray app without a window (used by the CLI and by
+// the browser extension through the native-messaging host).
+func startLocalDaemon() error { return spawnSelf("tray", "--background") }
+
+func localClient() *api.Client { return api.NewClient(localURL(), "") }
 
 // ---- tray ----
 
-func runTray() error {
-	cl, err := localClient()
-	if err != nil {
-		return err
+func runTray(background bool) error {
+	// Make the browser extension able to start us later (idempotent, cheap).
+	if err := registerNativeHost(); err != nil {
+		fmt.Fprintln(os.Stderr, "native messaging registration:", err)
 	}
+	cl := localClient()
 	if _, err := cl.Info(); err == nil {
 		// A daemon (and probably a tray) is already running: just show the window.
+		if background {
+			return nil
+		}
 		return spawnSelf("window")
 	}
-	d, err := startDaemon(daemonOpts{
-		Addr: "127.0.0.1:" + strconv.Itoa(config.DefaultPort), Token: cl.Token, Reveal: true,
-	})
+	d, err := startDaemon(daemonOpts{Addr: "127.0.0.1:" + strconv.Itoa(config.DefaultPort), Reveal: true})
 	if err != nil {
 		return err
 	}
@@ -98,7 +93,9 @@ func runTray() error {
 		systray.AddSeparator()
 		quit := systray.AddMenuItem("Quit ODM", "Stop the daemon and exit")
 
-		_ = spawnSelf("window") // first launch shows the window
+		if !background {
+			_ = spawnSelf("window") // first launch shows the window
+		}
 		go func() {
 			for {
 				select {
@@ -162,13 +159,9 @@ func runWindow() error {
 	if _, err := windows.CreateMutex(nil, false, name); err == windows.ERROR_ALREADY_EXISTS {
 		return nil
 	}
-	cl, err := localClient()
-	if err != nil {
-		return err
-	}
-	// The token travels in the URL fragment: never sent to the server, and the
-	// page moves it into localStorage.
-	url := fmt.Sprintf("%s/#token=%s", cl.Base, cl.Token)
+	cl := localClient()
+	cl.HTTP.Timeout = 2 * time.Second
+	url := cl.Base + "/"
 
 	runtime.LockOSThread()
 	// Without this Windows bitmap-scales the window (blurry, mis-centered) on
@@ -193,6 +186,22 @@ func runWindow() error {
 	}
 	defer w.Destroy()
 	makeFrameless(w, user32)
+	// The window is only a view on the tray's daemon: when the tray quits there
+	// is nothing to show, so close with it instead of sitting on "Disconnected".
+	go func() {
+		fails := 0
+		for {
+			time.Sleep(time.Second)
+			if _, err := cl.Info(); err != nil {
+				if fails++; fails >= 3 {
+					w.Destroy()
+					return
+				}
+			} else {
+				fails = 0
+			}
+		}
+	}()
 	w.Navigate(url)
 	w.Run()
 	return nil

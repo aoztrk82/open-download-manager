@@ -35,7 +35,9 @@ func (c *Client) do(method, path string, body, out any) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.Token)
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -78,8 +80,10 @@ func (c *Client) Get(id string) (*store.Download, error) {
 	return &d, c.do("GET", "/v1/downloads/"+id, nil, &d)
 }
 
-func (c *Client) Pause(id string) error  { return c.do("POST", "/v1/downloads/"+id+"/pause", nil, nil) }
-func (c *Client) Resume(id string) error { return c.do("POST", "/v1/downloads/"+id+"/resume", nil, nil) }
+func (c *Client) Pause(id string) error { return c.do("POST", "/v1/downloads/"+id+"/pause", nil, nil) }
+func (c *Client) Resume(id string) error {
+	return c.do("POST", "/v1/downloads/"+id+"/resume", nil, nil)
+}
 func (c *Client) Remove(id string) error { return c.RemoveFile(id, false) }
 
 // RemoveFile removes the download; deleteFile also deletes the file on the daemon's disk.
