@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "ODM - Open Download Manager",
+  "version": "0.1.0",
+  "description": "Send browser downloads to your Open Download Manager (local or remote).",
+  "permissions": ["downloads", "storage", "cookies", "contextMenus"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_popup": "popup.html", "default_title": "ODM" },
+  "options_ui": { "page": "options.html", "open_in_tab": true }
+}

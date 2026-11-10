@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>ODM settings</title>
+<style>
+  body { font: 14px system-ui, sans-serif; max-width: 480px; margin: 24px auto; padding: 0 16px; }
+  label { display: block; margin: 12px 0 4px; font-weight: 600; }
+  input[type=text], input[type=password], input[type=number] { width: 100%; padding: 6px 8px; box-sizing: border-box; }
+  button { margin-top: 16px; padding: 6px 14px; }
+  .ok { color: #16a34a; } .bad { color: #dc2626; }
+  small { color: #6b7280; }
+</style></head>
+<body>
+<h2>ODM settings</h2>
+<form id="form">
+  <label><input type="checkbox" id="enabled"> Capture browser downloads</label>
+  <label for="serverUrl">ODM URL</label>
+  <input type="text" id="serverUrl" placeholder="http://127.0.0.1:6800">
+  <small>Local daemon (<code>odm serve --local</code>) or a remote server.</small>
+  <label for="token">API token</label>
+  <input type="password" id="token" autocomplete="off">
+  <small>Local: the file <code>%APPDATA%\odm\token</code>. Remote: the token you started the server with.</small>
+  <label for="minSizeMB">Only capture files larger than (MB, 0 = all)</label>
+  <input type="number" id="minSizeMB" min="0">
+  <button type="submit">Save &amp; test connection</button>
+  <p id="status"></p>
+</form>
+<script src="options.js" type="module"></script>
+</body></html>

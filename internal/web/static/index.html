@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ODM</title>
+<style>
+  :root { --bg:#f6f7f9; --fg:#1a1d21; --card:#fff; --muted:#6b7280; --line:#e5e7eb; --accent:#2563eb; --bad:#dc2626; --ok:#16a34a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111317; --fg:#e6e8eb; --card:#1a1d23; --muted:#9aa3af; --line:#2a2f37; --accent:#60a5fa; --bad:#f87171; --ok:#4ade80; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:860px; margin:0 auto; padding:16px; }
+  h1 { font-size:18px; margin:0 0 12px; }
+  form { display:flex; gap:8px; margin-bottom:16px; }
+  input { flex:1; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); }
+  button { padding:7px 12px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .item { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+  .row { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .name { font-weight:600; overflow-wrap:anywhere; }
+  .meta { color:var(--muted); font-size:12px; margin-top:2px; }
+  .bar { height:6px; background:var(--line); border-radius:3px; margin:8px 0 4px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--accent); }
+  .completed .bar > i { background:var(--ok); }
+  .failed .bar > i { background:var(--bad); }
+  .err { color:var(--bad); font-size:12px; }
+  .actions { display:flex; gap:6px; flex-shrink:0; }
+  #login { max-width:420px; margin:80px auto; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main id="login" hidden>
+  <h1>ODM — sign in</h1>
+  <form id="loginForm"><input id="tok" type="password" placeholder="API token" autocomplete="current-password" required><button class="primary">Connect</button></form>
+  <div class="err" id="loginErr"></div>
+</main>
+<main id="app" hidden>
+  <h1>ODM <span class="meta" id="dir"></span></h1>
+  <form id="addForm"><input id="url" type="url" placeholder="https://… or ftp://…" required><button class="primary">Add</button></form>
+  <div id="list"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let token = localStorage.getItem("odm.token") || "";
+
+async function api(path, opts = {}) {
+  const r = await fetch("/v1" + path, { ...opts, headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" } });
+  if (r.status === 401) { showLogin(); throw new Error("unauthorized"); }
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  return r.status === 204 ? null : r.json();
+}
+function showLogin() { $("app").hidden = true; $("login").hidden = false; }
+function human(n) {
+  if (n < 1024) return n + " B";
+  const u = "KMGTP"; let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return n.toFixed(1) + " " + u[i] + "iB";
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function render(items) {
+  $("list").innerHTML = items.slice().reverse().map(d => {
+    const pct = d.size > 0 ? Math.floor(d.downloaded * 100 / d.size) : (d.status === "completed" ? 100 : 0);
+    const running = d.status === "active" || d.status === "queued";
+    return `<div class="item ${d.status}">
+      <div class="row"><div class="name">${esc(d.filename || d.request.url)}</div>
+        <div class="actions">
+          ${running ? `<button data-a="pause" data-id="${d.id}">Pause</button>` : ""}
+          ${d.status === "paused" || d.status === "failed" ? `<button data-a="resume" data-id="${d.id}">Resume</button>` : ""}
+          <button data-a="rm" data-id="${d.id}">Remove</button>
+        </div></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="meta">${d.status} · ${human(d.downloaded)}${d.size > 0 ? " / " + human(d.size) + " (" + pct + "%)" : ""}</div>
+      ${d.error ? `<div class="err">${esc(d.error)}</div>` : ""}
+    </div>`;
+  }).join("") || '<div class="meta">No downloads yet.</div>';
+}
+
+async function refresh() {
+  try { render(await api("/downloads")); } catch (e) { /* login screen handles 401 */ }
+}
+
+async function start() {
+  try {
+    const info = await api("/info");
+    $("dir").textContent = "→ " + info.defaultDir;
+    $("login").hidden = true; $("app").hidden = false;
+    refresh(); setInterval(refresh, 1000);
+  } catch { showLogin(); }
+}
+
+$("loginForm").onsubmit = async e => {
+  e.preventDefault(); token = $("tok").value.trim();
+  try { await api("/info"); localStorage.setItem("odm.token", token); location.reload(); }
+  catch { $("loginErr").textContent = "Invalid token."; }
+};
+$("addForm").onsubmit = async e => {
+  e.preventDefault();
+  try { await api("/downloads", { method: "POST", body: JSON.stringify({ request: { url: $("url").value } }) }); $("url").value = ""; refresh(); }
+  catch (err) { alert(err.message); }
+};
+$("list").onclick = async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const { a, id } = b.dataset;
+  await api("/downloads/" + id + (a === "rm" ? "" : "/" + a), { method: a === "rm" ? "DELETE" : "POST" });
+  refresh();
+};
+start();
+</script>
+</body>
+</html>

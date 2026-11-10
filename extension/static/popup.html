@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  body { font: 13px system-ui, sans-serif; width: 340px; margin: 0; padding: 10px; }
+  .top { display: flex; justify-content: space-between; align-items: center; }
+  ul { list-style: none; padding: 0; margin: 8px 0; max-height: 300px; overflow: auto; }
+  li { padding: 6px 0; border-bottom: 1px solid #e5e7eb; }
+  .name { font-weight: 600; overflow-wrap: anywhere; }
+  .meta { color: #6b7280; font-size: 12px; }
+  #err { color: #dc2626; }
+  button { margin-right: 6px; }
+</style></head>
+<body>
+<div class="top"><strong>ODM</strong><label><input type="checkbox" id="enabled"> Capture</label></div>
+<div id="err"></div>
+<ul id="list"></ul>
+<button id="open">Open web UI</button><button id="settings">Settings</button>
+<script src="popup.js" type="module"></script>
+</body></html>
