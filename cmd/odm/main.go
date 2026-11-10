@@ -24,6 +24,9 @@ var (
 )
 
 func main() {
+	// Cobra refuses to run when launched from Explorer ("This is a command line
+	// tool"). Double-clicking is exactly how the tray app is started.
+	cobra.MousetrapHelpText = ""
 	root := &cobra.Command{
 		Use:           "odm",
 		Short:         "Open Download Manager",
