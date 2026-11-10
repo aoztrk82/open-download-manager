@@ -5,109 +5,502 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ODM</title>
 <style>
-  :root { --bg:#f6f7f9; --fg:#1a1d21; --card:#fff; --muted:#6b7280; --line:#e5e7eb; --accent:#2563eb; --bad:#dc2626; --ok:#16a34a; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#111317; --fg:#e6e8eb; --card:#1a1d23; --muted:#9aa3af; --line:#2a2f37; --accent:#60a5fa; --bad:#f87171; --ok:#4ade80; }
+  :root {
+    --bg:#1e1e1e; --panel:#252526; --side:#252526; --bar:#333333; --menu:#3c3c3c; --fg:#cccccc; --fg-strong:#ffffff;
+    --muted:#8b8b8b; --line:#3c3c3c; --hover:#2a2d2e; --sel:#094771; --sel-inactive:#37373d;
+    --accent:#0e639c; --status:#007acc; --status-fg:#ffffff; --ok:#4ec9b0; --bad:#f48771; --warn:#cca700;
+    --input:#3c3c3c; --prog-bg:#3a3a3a; --prog:#2f8f4e; --shadow:rgba(0,0,0,.5);
   }
-  * { box-sizing: border-box; }
-  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
-  main { max-width:860px; margin:0 auto; padding:16px; }
-  h1 { font-size:18px; margin:0 0 12px; }
-  form { display:flex; gap:8px; margin-bottom:16px; }
-  input { flex:1; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); }
-  button { padding:7px 12px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); cursor:pointer; }
-  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-  .item { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
-  .row { display:flex; justify-content:space-between; gap:8px; align-items:center; }
-  .name { font-weight:600; overflow-wrap:anywhere; }
-  .meta { color:var(--muted); font-size:12px; margin-top:2px; }
-  .bar { height:6px; background:var(--line); border-radius:3px; margin:8px 0 4px; overflow:hidden; }
-  .bar > i { display:block; height:100%; background:var(--accent); }
-  .completed .bar > i { background:var(--ok); }
-  .failed .bar > i { background:var(--bad); }
-  .err { color:var(--bad); font-size:12px; }
-  .actions { display:flex; gap:6px; flex-shrink:0; }
-  #login { max-width:420px; margin:80px auto; }
+  :root[data-theme="light"] {
+    --bg:#ffffff; --panel:#f3f3f3; --side:#f3f3f3; --bar:#dddddd; --menu:#e8e8e8; --fg:#333333; --fg-strong:#000000;
+    --muted:#6b6b6b; --line:#d4d4d4; --hover:#e8e8e8; --sel:#cce4f7; --sel-inactive:#e4e6f1;
+    --accent:#007acc; --status:#007acc; --status-fg:#ffffff; --ok:#16825d; --bad:#c72e0f; --warn:#a07800;
+    --input:#ffffff; --prog-bg:#dcdcdc; --prog:#2f8f4e; --shadow:rgba(0,0,0,.25);
+  }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { display:flex; flex-direction:column; background:var(--bg); color:var(--fg);
+         font:13px/1.4 "Segoe UI", system-ui, sans-serif; overflow:hidden; user-select:none; }
+  button,input,textarea,select { font:inherit; color:inherit; }
   [hidden] { display:none !important; }
+
+  /* menu bar */
+  #menubar { display:flex; background:var(--bar); height:30px; align-items:stretch; flex-shrink:0; border-bottom:1px solid var(--line); }
+  #menubar .brand { padding:0 12px; display:flex; align-items:center; font-weight:600; color:var(--fg-strong); }
+  .menu { position:relative; }
+  .menu > .title { height:100%; padding:0 10px; display:flex; align-items:center; cursor:default; }
+  .menu:hover > .title, .menu.open > .title { background:var(--hover); }
+  .dropdown { display:none; position:absolute; top:100%; left:0; min-width:230px; background:var(--menu); border:1px solid var(--line);
+              box-shadow:0 4px 12px var(--shadow); padding:4px 0; z-index:50; }
+  .menu.open .dropdown { display:block; }
+  .dropdown .item { display:flex; justify-content:space-between; gap:24px; padding:5px 24px 5px 26px; cursor:default; white-space:nowrap; position:relative; }
+  .dropdown .item:hover { background:var(--accent); color:#fff; }
+  .dropdown .item .key { color:var(--muted); }
+  .dropdown .item:hover .key { color:#ddd; }
+  .dropdown .item.check.on::before { content:"\2713"; position:absolute; left:8px; }
+  .dropdown .sep { height:1px; background:var(--line); margin:4px 0; }
+
+  /* toolbar */
+  #toolbar { display:flex; align-items:center; gap:2px; background:var(--panel); border-bottom:1px solid var(--line); padding:4px 8px; flex-shrink:0; }
+  .tb { display:flex; align-items:center; gap:6px; background:none; border:1px solid transparent; border-radius:3px; padding:4px 9px; cursor:pointer; }
+  .tb:hover:not(:disabled) { background:var(--hover); border-color:var(--line); }
+  .tb:disabled { opacity:.4; cursor:default; }
+  .tb svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .tb.primary svg { stroke:var(--ok); }
+  .vsep { width:1px; height:20px; background:var(--line); margin:0 6px; }
+  #search { margin-left:auto; width:220px; background:var(--input); border:1px solid var(--line); border-radius:3px; padding:4px 8px; user-select:text; }
+  #search:focus { outline:1px solid var(--accent); }
+
+  /* workbench */
+  #work { flex:1; display:flex; min-height:0; }
+  #sidebar { width:210px; background:var(--side); border-right:1px solid var(--line); overflow:auto; flex-shrink:0; }
+  .sec { padding:8px 12px 4px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .nav { display:flex; align-items:center; gap:8px; padding:4px 14px; cursor:default; }
+  .nav:hover { background:var(--hover); }
+  .nav.active { background:var(--sel); color:var(--fg-strong); }
+  .nav .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0; }
+  .nav .count { margin-left:auto; color:var(--muted); font-size:12px; }
+  .nav.active .count { color:var(--fg-strong); }
+  #center { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #tablewrap { flex:1; overflow:auto; min-height:0; }
+  table { width:100%; border-collapse:collapse; table-layout:fixed; }
+  th { position:sticky; top:0; background:var(--panel); text-align:left; font-weight:600; padding:5px 8px; border-bottom:1px solid var(--line);
+       border-right:1px solid var(--line); cursor:default; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; z-index:1; }
+  th.sorted::after { content:" \25B2"; font-size:9px; color:var(--muted); }
+  th.sorted.desc::after { content:" \25BC"; }
+  td { padding:3px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-bottom:1px solid transparent; }
+  tbody tr:hover { background:var(--hover); }
+  tbody tr.sel { background:var(--sel-inactive); }
+  #tablewrap:focus-within tbody tr.sel, tbody tr.sel.focus { background:var(--sel); color:var(--fg-strong); }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .progcell { position:relative; height:16px; background:var(--prog-bg); border-radius:2px; overflow:hidden; }
+  .progcell i { position:absolute; inset:0 auto 0 0; background:var(--prog); }
+  .progcell span { position:absolute; inset:0; text-align:center; font-size:11px; line-height:16px; color:#fff; text-shadow:0 0 2px rgba(0,0,0,.6); }
+  tr.failed .progcell i { background:var(--bad); } tr.paused .progcell i { background:var(--warn); } tr.queued .progcell i { background:var(--muted); }
+  .st-active { color:var(--ok); } .st-failed { color:var(--bad); } .st-paused { color:var(--warn); } .st-queued { color:var(--muted); }
+  #empty { padding:60px 20px; text-align:center; color:var(--muted); }
+  #empty b { display:block; font-size:15px; color:var(--fg); margin-bottom:6px; }
+
+  /* details panel */
+  #details { height:170px; border-top:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; flex-shrink:0; }
+  #details .tabs { display:flex; background:var(--bar); border-bottom:1px solid var(--line); }
+  #details .tab { padding:4px 14px; border-right:1px solid var(--line); background:var(--bg); color:var(--fg-strong); }
+  #detbody { flex:1; overflow:auto; padding:8px 12px; display:grid; grid-template-columns:130px 1fr; gap:3px 12px; align-content:start; user-select:text; }
+  #detbody .k { color:var(--muted); } #detbody .v { overflow-wrap:anywhere; }
+
+  /* status bar */
+  #statusbar { display:flex; align-items:center; background:var(--status); color:var(--status-fg); height:22px; font-size:12px; flex-shrink:0; }
+  #statusbar > div { padding:0 10px; height:100%; display:flex; align-items:center; gap:5px; white-space:nowrap; }
+  #statusbar .grow { flex:1; }
+  #statusbar .conn.bad { background:#c72e0f; }
+
+  /* context menu & dialogs */
+  #ctx { position:fixed; z-index:100; display:none; }
+  #ctx .dropdown { display:block; position:static; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:flex-start; justify-content:center; padding-top:12vh; z-index:200; }
+  .dialog { width:min(520px, 92vw); background:var(--panel); border:1px solid var(--line); box-shadow:0 8px 28px var(--shadow); }
+  .dialog h2 { margin:0; padding:10px 14px; font-size:13px; background:var(--bar); color:var(--fg-strong); }
+  .dialog .body { padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .dialog label { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:12px; }
+  .dialog input, .dialog textarea { background:var(--input); border:1px solid var(--line); border-radius:3px; padding:6px 8px; user-select:text; }
+  .dialog textarea { min-height:90px; resize:vertical; }
+  .dialog input:focus, .dialog textarea:focus { outline:1px solid var(--accent); }
+  .dialog .foot { display:flex; justify-content:flex-end; gap:8px; padding:10px 14px; border-top:1px solid var(--line); }
+  .btn { padding:5px 16px; border:1px solid var(--line); border-radius:3px; background:var(--menu); cursor:pointer; }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .err { color:var(--bad); font-size:12px; min-height:16px; }
+  #login .dialog { margin-top:8vh; }
 </style>
 </head>
 <body>
-<main id="login" hidden>
-  <h1>ODM — sign in</h1>
-  <form id="loginForm"><input id="tok" type="password" placeholder="API token" autocomplete="current-password" required><button class="primary">Connect</button></form>
-  <div class="err" id="loginErr"></div>
-</main>
-<main id="app" hidden>
-  <h1>ODM <span class="meta" id="dir"></span></h1>
-  <form id="addForm"><input id="url" type="url" placeholder="https://… or ftp://…" required><button class="primary">Add</button></form>
-  <div id="list"></div>
-</main>
+
+<div id="menubar">
+  <div class="brand">ODM</div>
+  <div class="menu" data-menu="file"><div class="title">File</div><div class="dropdown">
+    <div class="item" data-act="add"><span>Add Download…</span><span class="key">Ctrl+N</span></div>
+    <div class="sep"></div>
+    <div class="item" data-act="pauseAll"><span>Pause All</span></div>
+    <div class="item" data-act="resumeAll"><span>Resume All</span></div>
+    <div class="sep"></div>
+    <div class="item" data-act="clearDone"><span>Remove Completed</span></div>
+  </div></div>
+  <div class="menu" data-menu="edit"><div class="title">Edit</div><div class="dropdown">
+    <div class="item" data-act="selectAll"><span>Select All</span><span class="key">Ctrl+A</span></div>
+    <div class="sep"></div>
+    <div class="item" data-act="pause"><span>Pause</span></div>
+    <div class="item" data-act="resume"><span>Resume</span></div>
+    <div class="item" data-act="remove"><span>Remove</span><span class="key">Del</span></div>
+    <div class="sep"></div>
+    <div class="item" data-act="copyUrl"><span>Copy URL</span><span class="key">Ctrl+C</span></div>
+  </div></div>
+  <div class="menu" data-menu="view"><div class="title">View</div><div class="dropdown">
+    <div class="item check" data-act="toggleSidebar" id="m-sidebar"><span>Sidebar</span><span class="key">Ctrl+B</span></div>
+    <div class="item check" data-act="toggleDetails" id="m-details"><span>Details Panel</span><span class="key">Ctrl+J</span></div>
+    <div class="item check" data-act="toggleStatus" id="m-status"><span>Status Bar</span></div>
+    <div class="sep"></div>
+    <div class="item" data-act="theme"><span>Toggle Light/Dark Theme</span></div>
+  </div></div>
+  <div class="menu" data-menu="tools"><div class="title">Tools</div><div class="dropdown">
+    <div class="item" data-act="signout"><span>Change Server Token…</span></div>
+  </div></div>
+  <div class="menu" data-menu="help"><div class="title">Help</div><div class="dropdown">
+    <div class="item" data-act="about"><span>About ODM</span></div>
+  </div></div>
+</div>
+
+<div id="toolbar">
+  <button class="tb primary" data-act="add" title="Add download (Ctrl+N)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+  <div class="vsep"></div>
+  <button class="tb" data-act="resume" id="tb-resume" title="Resume"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>Resume</button>
+  <button class="tb" data-act="pause" id="tb-pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>Pause</button>
+  <button class="tb" data-act="remove" id="tb-remove" title="Remove (Del)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Remove</button>
+  <input id="search" type="search" placeholder="Filter downloads…">
+</div>
+
+<div id="work">
+  <div id="sidebar">
+    <div class="sec">Downloads</div>
+    <div class="nav active" data-filter="all"><span class="dot"></span>All<span class="count" id="c-all">0</span></div>
+    <div class="nav" data-filter="active"><span class="dot" style="background:var(--ok)"></span>Downloading<span class="count" id="c-active">0</span></div>
+    <div class="nav" data-filter="queued"><span class="dot"></span>Queued<span class="count" id="c-queued">0</span></div>
+    <div class="nav" data-filter="paused"><span class="dot" style="background:var(--warn)"></span>Paused<span class="count" id="c-paused">0</span></div>
+    <div class="nav" data-filter="completed"><span class="dot" style="background:var(--status)"></span>Completed<span class="count" id="c-completed">0</span></div>
+    <div class="nav" data-filter="failed"><span class="dot" style="background:var(--bad)"></span>Failed<span class="count" id="c-failed">0</span></div>
+    <div class="sec">Protocols</div>
+    <div class="nav" data-filter="proto:http"><span class="dot"></span>HTTP / HTTPS<span class="count" id="c-http">0</span></div>
+    <div class="nav" data-filter="proto:ftp"><span class="dot"></span>FTP / FTPS<span class="count" id="c-ftp">0</span></div>
+  </div>
+  <div id="center">
+    <div id="tablewrap" tabindex="0">
+      <table>
+        <colgroup><col style="width:34%"><col style="width:11%"><col style="width:17%"><col style="width:11%"><col style="width:11%"><col style="width:8%"><col style="width:8%"></colgroup>
+        <thead><tr>
+          <th data-sort="name">Name</th><th data-sort="size">Size</th><th data-sort="pct">Progress</th><th data-sort="status">Status</th>
+          <th data-sort="speed">Speed</th><th data-sort="eta">ETA</th><th data-sort="added">Added</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty" hidden><b>No downloads</b>Press Ctrl+N or click Add to start one.</div>
+    </div>
+    <div id="details">
+      <div class="tabs"><div class="tab">General</div></div>
+      <div id="detbody"></div>
+    </div>
+  </div>
+</div>
+
+<div id="statusbar">
+  <div class="conn" id="s-conn">Connecting…</div>
+  <div id="s-dir" class="grow"></div>
+  <div id="s-count"></div>
+  <div id="s-speed">Down: 0 B/s</div>
+</div>
+
+<div id="ctx"><div class="dropdown">
+  <div class="item" data-act="resume"><span>Resume</span></div>
+  <div class="item" data-act="pause"><span>Pause</span></div>
+  <div class="sep"></div>
+  <div class="item" data-act="copyUrl"><span>Copy URL</span></div>
+  <div class="item" data-act="remove"><span>Remove</span><span class="key">Del</span></div>
+</div></div>
+
+<div id="dlg" hidden></div>
+
 <script>
+"use strict";
 const $ = id => document.getElementById(id);
-let token = localStorage.getItem("odm.token") || "";
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const store = { get:k => { try { return localStorage.getItem(k); } catch { return null; } },
+                set:(k,v) => { try { localStorage.setItem(k,v); } catch {} } };
+
+/* ---------- auth / api ---------- */
+// The desktop app opens us as /#token=...; move it out of the URL.
+const m = location.hash.match(/token=([0-9a-f]+)/);
+if (m) { store.set("odm.token", m[1]); history.replaceState(null, "", location.pathname); }
+let token = store.get("odm.token") || "";
+let info = null, online = false;
 
 async function api(path, opts = {}) {
-  const r = await fetch("/v1" + path, { ...opts, headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" } });
-  if (r.status === 401) { showLogin(); throw new Error("unauthorized"); }
+  const r = await fetch("/v1" + path, { ...opts, headers:{ Authorization:"Bearer " + token, "Content-Type":"application/json" } });
+  if (r.status === 401) { promptToken(); throw new Error("unauthorized"); }
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
   return r.status === 204 ? null : r.json();
 }
-function showLogin() { $("app").hidden = true; $("login").hidden = false; }
-function human(n) {
+
+/* ---------- state ---------- */
+let items = [];                 // latest list from server
+const speedOf = new Map();      // id -> {bytes, t, bps}
+let filter = "all", query = "", sortKey = "added", sortDesc = true;
+let selected = new Set(), anchor = null;
+
+const fmtBytes = n => {
   if (n < 1024) return n + " B";
   const u = "KMGTP"; let i = -1;
   do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
-  return n.toFixed(1) + " " + u[i] + "iB";
-}
-function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+  return n.toFixed(n >= 100 ? 0 : 1) + " " + u[i] + "iB";
+};
+const fmtEta = s => {
+  if (!isFinite(s) || s <= 0) return "";
+  if (s < 60) return Math.ceil(s) + "s";
+  if (s < 3600) return Math.floor(s / 60) + "m " + Math.floor(s % 60) + "s";
+  if (s < 86400) return Math.floor(s / 3600) + "h " + Math.floor(s % 3600 / 60) + "m";
+  return Math.floor(s / 86400) + "d";
+};
+const fmtDate = ms => {
+  const d = new Date(ms), now = new Date();
+  return d.toDateString() === now.toDateString()
+    ? d.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" })
+    : d.toLocaleDateString([], { day:"2-digit", month:"short" });
+};
+const proto = d => /^ftps?:/i.test(d.request.url) ? "ftp" : "http";
+const pct = d => d.size > 0 ? Math.min(100, d.downloaded * 100 / d.size) : (d.status === "completed" ? 100 : 0);
+const nameOf = d => d.filename || d.request.url.split("?")[0].split("/").pop() || d.request.url;
 
-function render(items) {
-  $("list").innerHTML = items.slice().reverse().map(d => {
-    const pct = d.size > 0 ? Math.floor(d.downloaded * 100 / d.size) : (d.status === "completed" ? 100 : 0);
-    const running = d.status === "active" || d.status === "queued";
-    return `<div class="item ${d.status}">
-      <div class="row"><div class="name">${esc(d.filename || d.request.url)}</div>
-        <div class="actions">
-          ${running ? `<button data-a="pause" data-id="${d.id}">Pause</button>` : ""}
-          ${d.status === "paused" || d.status === "failed" ? `<button data-a="resume" data-id="${d.id}">Resume</button>` : ""}
-          <button data-a="rm" data-id="${d.id}">Remove</button>
-        </div></div>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="meta">${d.status} · ${human(d.downloaded)}${d.size > 0 ? " / " + human(d.size) + " (" + pct + "%)" : ""}</div>
-      ${d.error ? `<div class="err">${esc(d.error)}</div>` : ""}
-    </div>`;
-  }).join("") || '<div class="meta">No downloads yet.</div>';
+function updateSpeeds() {
+  const now = performance.now();
+  for (const d of items) {
+    const p = speedOf.get(d.id);
+    if (d.status !== "active") { speedOf.set(d.id, { bytes:d.downloaded, t:now, bps:0 }); continue; }
+    if (p && now > p.t) {
+      const inst = Math.max(0, (d.downloaded - p.bytes) / ((now - p.t) / 1000));
+      speedOf.set(d.id, { bytes:d.downloaded, t:now, bps:p.bps ? p.bps * .6 + inst * .4 : inst }); // smoothed
+    } else speedOf.set(d.id, { bytes:d.downloaded, t:now, bps:0 });
+  }
+  for (const id of speedOf.keys()) if (!items.some(d => d.id === id)) speedOf.delete(id);
+}
+const bps = d => (speedOf.get(d.id) || {}).bps || 0;
+const eta = d => { const s = bps(d); return d.status === "active" && s > 0 && d.size > 0 ? (d.size - d.downloaded) / s : Infinity; };
+
+/* ---------- rendering ---------- */
+function matches(d) {
+  if (filter.startsWith("proto:")) { if (proto(d) !== filter.slice(6)) return false; }
+  else if (filter !== "all" && d.status !== filter) return false;
+  if (query) return (nameOf(d) + " " + d.request.url).toLowerCase().includes(query);
+  return true;
+}
+const sorters = {
+  name:(a,b) => nameOf(a).localeCompare(nameOf(b)), size:(a,b) => a.size - b.size, pct:(a,b) => pct(a) - pct(b),
+  status:(a,b) => a.status.localeCompare(b.status), speed:(a,b) => bps(a) - bps(b),
+  eta:(a,b) => (isFinite(eta(a)) ? eta(a) : 1e12) - (isFinite(eta(b)) ? eta(b) : 1e12),
+  added:(a,b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
+};
+function visible() {
+  const v = items.filter(matches).sort(sorters[sortKey]);
+  return sortDesc ? v.reverse() : v;
+}
+const cap = s => s[0].toUpperCase() + s.slice(1);
+
+function render() {
+  const list = visible();
+  $("rows").innerHTML = list.map(d => {
+    const p = pct(d);
+    return `<tr data-id="${d.id}" class="${d.status}${selected.has(d.id) ? " sel" : ""}">
+      <td title="${esc(d.request.url)}">${esc(nameOf(d))}</td>
+      <td class="num">${d.size > 0 ? fmtBytes(d.size) : "—"}</td>
+      <td><div class="progcell"><i style="width:${p}%"></i><span>${p.toFixed(1)}%</span></div></td>
+      <td class="st-${d.status}">${cap(d.status)}</td>
+      <td class="num">${d.status === "active" ? fmtBytes(bps(d)) + "/s" : ""}</td>
+      <td class="num">${fmtEta(eta(d))}</td>
+      <td class="num">${fmtDate(Date.parse(d.createdAt))}</td></tr>`;
+  }).join("");
+  $("empty").hidden = list.length > 0;
+  $$("th[data-sort]").forEach(th => {
+    th.classList.toggle("sorted", th.dataset.sort === sortKey);
+    th.classList.toggle("desc", th.dataset.sort === sortKey && sortDesc);
+  });
+  // sidebar counts
+  const cnt = { all:items.length, active:0, queued:0, paused:0, completed:0, failed:0, http:0, ftp:0 };
+  for (const d of items) { cnt[d.status]++; cnt[proto(d)]++; }
+  for (const k in cnt) $("c-" + k).textContent = cnt[k];
+  // status bar
+  const total = items.reduce((a, d) => a + bps(d), 0);
+  $("s-speed").textContent = "Down: " + fmtBytes(total) + "/s";
+  $("s-count").textContent = cnt.active + " active · " + cnt.completed + " completed · " + items.length + " total";
+  // toolbar state
+  const sel = items.filter(d => selected.has(d.id));
+  $("tb-pause").disabled = !sel.some(d => d.status === "active" || d.status === "queued");
+  $("tb-resume").disabled = !sel.some(d => d.status === "paused" || d.status === "failed");
+  $("tb-remove").disabled = sel.length === 0;
+  renderDetails(sel);
 }
 
+function renderDetails(sel) {
+  const d = sel.length === 1 ? sel[0] : null;
+  if (!d) { $("detbody").innerHTML = `<div class="k" style="grid-column:1/-1">${sel.length ? sel.length + " downloads selected" : "Select a download to see its details."}</div>`; return; }
+  const rows = [
+    ["Name", nameOf(d)], ["URL", d.request.url], ["Save to", (info ? info.defaultDir : "") ],
+    ["Size", d.size > 0 ? fmtBytes(d.size) + " (" + d.size.toLocaleString() + " bytes)" : "Unknown"],
+    ["Downloaded", fmtBytes(d.downloaded)], ["Status", cap(d.status)], ["Added", new Date(d.createdAt).toLocaleString()],
+  ];
+  if (d.request.referer) rows.push(["Referer", d.request.referer]);
+  if (d.error) rows.push(["Error", d.error]);
+  $("detbody").innerHTML = rows.map(([k, v]) => `<div class="k">${k}</div><div class="v">${esc(v)}</div>`).join("");
+}
+
+/* ---------- data loop ---------- */
 async function refresh() {
-  try { render(await api("/downloads")); } catch (e) { /* login screen handles 401 */ }
-}
-
-async function start() {
   try {
-    const info = await api("/info");
-    $("dir").textContent = "→ " + info.defaultDir;
-    $("login").hidden = true; $("app").hidden = false;
-    refresh(); setInterval(refresh, 1000);
-  } catch { showLogin(); }
+    items = await api("/downloads");
+    if (!online) { online = true; setConn(); }
+    updateSpeeds();
+    for (const id of [...selected]) if (!items.some(d => d.id === id)) selected.delete(id);
+    render();
+  } catch (e) {
+    if (online) { online = false; setConn(); }
+  }
+}
+function setConn() {
+  const c = $("s-conn");
+  c.textContent = online ? "● Connected" : "● Disconnected";
+  c.classList.toggle("bad", !online);
 }
 
-$("loginForm").onsubmit = async e => {
-  e.preventDefault(); token = $("tok").value.trim();
-  try { await api("/info"); localStorage.setItem("odm.token", token); location.reload(); }
-  catch { $("loginErr").textContent = "Invalid token."; }
+/* ---------- actions ---------- */
+const selItems = () => items.filter(d => selected.has(d.id));
+async function each(list, fn) { for (const d of list) { try { await fn(d); } catch (e) { toast(e.message); } } refresh(); }
+const toast = msg => { $("s-dir").textContent = msg; setTimeout(() => { $("s-dir").textContent = dirLabel(); }, 4000); };
+const dirLabel = () => info ? "Saving to " + info.defaultDir : "";
+
+const actions = {
+  add: () => addDialog(),
+  pause: () => each(selItems().filter(d => d.status === "active" || d.status === "queued"), d => api(`/downloads/${d.id}/pause`, { method:"POST" })),
+  resume: () => each(selItems().filter(d => d.status === "paused" || d.status === "failed"), d => api(`/downloads/${d.id}/resume`, { method:"POST" })),
+  remove: () => { const l = selItems(); if (l.length) each(l, d => api(`/downloads/${d.id}`, { method:"DELETE" })); },
+  pauseAll: () => each(items.filter(d => d.status === "active" || d.status === "queued"), d => api(`/downloads/${d.id}/pause`, { method:"POST" })),
+  resumeAll: () => each(items.filter(d => d.status === "paused"), d => api(`/downloads/${d.id}/resume`, { method:"POST" })),
+  clearDone: () => each(items.filter(d => d.status === "completed"), d => api(`/downloads/${d.id}`, { method:"DELETE" })),
+  selectAll: () => { visible().forEach(d => selected.add(d.id)); render(); },
+  copyUrl: () => { const t = selItems().map(d => d.request.url).join("\n"); if (t) navigator.clipboard.writeText(t).catch(() => {}); },
+  toggleSidebar: () => setPane("sidebar", $("sidebar").hidden),
+  toggleDetails: () => setPane("details", $("details").hidden),
+  toggleStatus: () => setPane("statusbar", $("statusbar").hidden),
+  theme: () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"),
+  signout: () => promptToken(),
+  about: () => aboutDialog(),
 };
-$("addForm").onsubmit = async e => {
+function setPane(id, show) { $(id).hidden = !show; store.set("odm.pane." + id, show ? "1" : "0"); syncChecks(); }
+function syncChecks() {
+  $("m-sidebar").classList.toggle("on", !$("sidebar").hidden);
+  $("m-details").classList.toggle("on", !$("details").hidden);
+  $("m-status").classList.toggle("on", !$("statusbar").hidden);
+}
+function setTheme(t) { document.documentElement.dataset.theme = t; store.set("odm.theme", t); }
+
+/* ---------- dialogs ---------- */
+function dialog(title, bodyHtml, buttons) {
+  const el = $("dlg");
+  el.hidden = false;
+  el.innerHTML = `<div class="overlay"><div class="dialog" role="dialog"><h2>${esc(title)}</h2><div class="body">${bodyHtml}</div>
+    <div class="foot">${buttons.map((b, i) => `<button class="btn${b.primary ? " primary" : ""}" data-i="${i}">${esc(b.label)}</button>`).join("")}</div></div></div>`;
+  const close = () => { el.hidden = true; el.innerHTML = ""; };
+  el.querySelector(".foot").onclick = async e => {
+    const b = e.target.closest("button"); if (!b) return;
+    const spec = buttons[+b.dataset.i];
+    if (!spec.action || (await spec.action(el)) !== false) close();
+  };
+  el.querySelector(".overlay").onmousedown = e => { if (e.target.classList.contains("overlay") && !buttons.some(b => b.sticky)) close(); };
+  el.onkeydown = e => { if (e.key === "Escape" && !buttons.some(b => b.sticky)) close(); };
+  const first = el.querySelector("textarea,input"); if (first) first.focus();
+  return close;
+}
+function addDialog() {
+  dialog("Add Download", `
+    <label>URLs (one per line — http, https, ftp, ftps)<textarea id="d-urls" placeholder="https://example.com/file.iso"></textarea></label>
+    <label>File name (optional, single URL only)<input id="d-name"></label>
+    <div class="err" id="d-err"></div>`, [
+    { label:"Cancel" },
+    { label:"Download", primary:true, action: async el => {
+      const urls = el.querySelector("#d-urls").value.split(/\s+/).filter(Boolean);
+      const name = el.querySelector("#d-name").value.trim();
+      if (!urls.length) { el.querySelector("#d-err").textContent = "Enter at least one URL."; return false; }
+      try {
+        for (const u of urls) await api("/downloads", { method:"POST", body:JSON.stringify({ request:{ url:u }, filename: urls.length === 1 ? name : "" }) });
+      } catch (e) { el.querySelector("#d-err").textContent = e.message; return false; }
+      refresh();
+    } }]);
+  $("dlg").querySelector("#d-urls").addEventListener("keydown", e => { if (e.key === "Enter" && e.ctrlKey) $("dlg").querySelector(".btn.primary").click(); });
+}
+function aboutDialog() {
+  dialog("About ODM", `<div>Open Download Manager ${esc(info ? info.version : "")}</div><div style="color:var(--muted)">HTTP(S) / FTP(S) segmented downloads with a shared local & remote server.</div>`, [{ label:"OK", primary:true }]);
+}
+function promptToken() {
+  dialog("Connect to ODM", `<label>API token<input id="t-tok" type="password" autocomplete="current-password"></label><div class="err" id="t-err"></div>`, [
+    { label:"Connect", primary:true, sticky:true, action: async el => {
+      const t = el.querySelector("#t-tok").value.trim(); if (!t) return false;
+      const old = token; token = t;
+      try { info = await api("/info"); store.set("odm.token", t); }
+      catch { token = old; el.querySelector("#t-err").textContent = "Invalid token."; return false; }
+      $("s-dir").textContent = dirLabel(); refresh();
+    } }]);
+  $("dlg").querySelector("#t-tok").addEventListener("keydown", e => { if (e.key === "Enter") $("dlg").querySelector(".btn.primary").click(); });
+}
+
+/* ---------- wiring ---------- */
+// menus: click to open, hover-switch while one is open
+let openMenu = null;
+const closeMenus = () => { $$(".menu.open").forEach(m => m.classList.remove("open")); openMenu = null; };
+$$(".menu").forEach(menu => {
+  menu.querySelector(".title").onclick = e => { e.stopPropagation(); const was = menu.classList.contains("open"); closeMenus(); if (!was) { menu.classList.add("open"); openMenu = menu; } };
+  menu.onmouseenter = () => { if (openMenu && openMenu !== menu) { closeMenus(); menu.classList.add("open"); openMenu = menu; } };
+});
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]");
+  closeMenus(); hideCtx();
+  if (el && !el.disabled && actions[el.dataset.act]) actions[el.dataset.act]();
+});
+// sidebar filters
+$$(".nav").forEach(n => n.onclick = () => { $$(".nav").forEach(x => x.classList.remove("active")); n.classList.add("active"); filter = n.dataset.filter; render(); });
+$("search").oninput = e => { query = e.target.value.trim().toLowerCase(); render(); };
+// column sort
+$$("th[data-sort]").forEach(th => th.onclick = () => {
+  if (sortKey === th.dataset.sort) sortDesc = !sortDesc; else { sortKey = th.dataset.sort; sortDesc = false; }
+  render();
+});
+// row selection (click, ctrl, shift)
+$("rows").addEventListener("click", e => {
+  const tr = e.target.closest("tr"); if (!tr) return;
+  const id = tr.dataset.id, ids = visible().map(d => d.id);
+  if (e.shiftKey && anchor && ids.includes(anchor)) {
+    const a = ids.indexOf(anchor), b = ids.indexOf(id);
+    selected = new Set(ids.slice(Math.min(a, b), Math.max(a, b) + 1));
+  } else if (e.ctrlKey || e.metaKey) { selected.has(id) ? selected.delete(id) : selected.add(id); anchor = id; }
+  else { selected = new Set([id]); anchor = id; }
+  render();
+});
+$("rows").addEventListener("dblclick", e => { const tr = e.target.closest("tr"); if (!tr) return; selected = new Set([tr.dataset.id]); const d = selItems()[0];
+  if (d && (d.status === "paused" || d.status === "failed")) actions.resume(); else if (d && (d.status === "active" || d.status === "queued")) actions.pause(); });
+$("tablewrap").addEventListener("click", e => { if (e.target === $("tablewrap") || e.target.id === "empty") { selected.clear(); render(); } });
+// context menu
+function hideCtx() { $("ctx").style.display = "none"; }
+$("tablewrap").addEventListener("contextmenu", e => {
   e.preventDefault();
-  try { await api("/downloads", { method: "POST", body: JSON.stringify({ request: { url: $("url").value } }) }); $("url").value = ""; refresh(); }
-  catch (err) { alert(err.message); }
-};
-$("list").onclick = async e => {
-  const b = e.target.closest("button"); if (!b) return;
-  const { a, id } = b.dataset;
-  await api("/downloads/" + id + (a === "rm" ? "" : "/" + a), { method: a === "rm" ? "DELETE" : "POST" });
-  refresh();
-};
+  const tr = e.target.closest("tr[data-id]");
+  if (tr && !selected.has(tr.dataset.id)) { selected = new Set([tr.dataset.id]); anchor = tr.dataset.id; render(); }
+  if (!selected.size) return;
+  const c = $("ctx"); c.style.display = "block";
+  c.style.left = Math.min(e.clientX, innerWidth - 200) + "px"; c.style.top = Math.min(e.clientY, innerHeight - 150) + "px";
+});
+// keyboard
+document.addEventListener("keydown", e => {
+  const typing = /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+  if (e.ctrlKey && e.key.toLowerCase() === "n") { e.preventDefault(); actions.add(); }
+  else if (e.ctrlKey && e.key.toLowerCase() === "b") { e.preventDefault(); actions.toggleSidebar(); }
+  else if (e.ctrlKey && e.key.toLowerCase() === "j") { e.preventDefault(); actions.toggleDetails(); }
+  else if (!typing && e.ctrlKey && e.key.toLowerCase() === "a") { e.preventDefault(); actions.selectAll(); }
+  else if (!typing && e.ctrlKey && e.key.toLowerCase() === "c") actions.copyUrl();
+  else if (!typing && e.key === "Delete") actions.remove();
+  else if (e.key === "Escape") { closeMenus(); hideCtx(); }
+});
+
+/* ---------- boot ---------- */
+async function start() {
+  setTheme(store.get("odm.theme") || "dark");
+  for (const id of ["sidebar", "details", "statusbar"]) if (store.get("odm.pane." + id) === "0") $(id).hidden = true;
+  syncChecks(); setConn(); render();
+  try { info = await api("/info"); $("s-dir").textContent = dirLabel(); } catch { /* promptToken shown on 401 */ }
+  refresh(); setInterval(refresh, 1000);
+}
 start();
 </script>
 </body>

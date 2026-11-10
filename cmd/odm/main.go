@@ -34,6 +34,9 @@ func main() {
 		"daemon URL (default: local daemon, auto-started; env ODM_SERVER)")
 	root.PersistentFlags().StringVar(&token, "token", envOr("ODM_TOKEN", ""),
 		"API token (default: local token file; env ODM_TOKEN)")
+	rootRun, guiCmds := guiCommands()
+	root.RunE = rootRun // no arguments (double-click) -> tray app on Windows
+	root.AddCommand(guiCmds...)
 	root.AddCommand(serveCmd(), addCmd(), listCmd(), watchCmd(),
 		simpleCmd("pause", "Pause a download", (*api.Client).Pause),
 		simpleCmd("resume", "Resume a download", (*api.Client).Resume),
