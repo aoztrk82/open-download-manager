@@ -3,6 +3,8 @@
 Newest first. Commit hashes refer to `git log`.
 
 ## 2026-11-11 - third session
+- Version 0.2.0 (ODM and extensions). First AMO-signed Firefox build committed as
+  `internal/extbundle/files/odm-firefox.xpi`; from now on bump `extension/package.json` before every `pnpm sign`.
 - Firefox double download: root cause is timing, not an API error. Small files (Gutenberg epub, ~106 KB, no
   `Content-Disposition`) finish before `downloads.onCreated` -> `cancel()` runs. Firefox now cancels download
   responses in blocking `webRequest.onHeadersReceived` and hands them to ODM; `onCreated` is the fallback and

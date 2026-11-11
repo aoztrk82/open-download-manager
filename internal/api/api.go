@@ -21,7 +21,7 @@ import (
 	"github.com/aoztrk82/open-download-manager/internal/store"
 )
 
-const Version = "0.1.0"
+const Version = "0.2.0"
 
 type Server struct {
 	Queue      *queue.Manager

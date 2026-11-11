@@ -38,9 +38,7 @@ Owner checklist:
 Still open: deduplication guard on the ODM side (same URL added twice within a few seconds -> ignore).
 
 ## 2. Extension install from ODM (written 2026-11-11, needs the owner)
-- [ ] Owner: create AMO API keys, `$env:WEB_EXT_API_KEY=...; $env:WEB_EXT_API_SECRET=...; cd extension; pnpm sign`,
-      then rebuild odm.exe and commit `internal/extbundle/files/odm-firefox.xpi`. Only after TODO #1 works with a
-      temporary load (a signed version number cannot be reused).
+- [x] Signed 0.2.0 with AMO (unlisted) and embedded; keys come from the gitignored root `.env`.
 - [ ] Integrations > Install in Firefox: shows Firefox's "Add ODM?" prompt (firefox.exe <xpi path>, untested).
 - [ ] Chrome/Edge: "Open ... Extensions Page" really opens chrome://extensions / edge://extensions from the
       command line (unverified); Load unpacked from the folder; extension id equals `chromeExtensionID`.
