@@ -70,7 +70,7 @@ double-clicking odm.exe instead starts the tray app.
 	f.StringVar(&o.Token, "token", "", "API token (server mode; env ODM_TOKEN)")
 	f.StringVar(&o.Dir, "dir", "", "default download directory")
 	f.IntVar(&o.MaxActive, "max-active", 3, "simultaneous downloads")
-	f.IntVar(&o.Connections, "connections", 4, "connections per download")
+	f.IntVar(&o.Connections, "connections", 0, "max connections per download (0 = number of CPU threads; the real number adapts to the server)")
 	f.Int64Var(&o.RateLimit, "limit", 0, "bytes/sec per download (0 = unlimited)")
 	f.BoolVar(&o.NoUI, "no-ui", false, "disable the Web UI")
 	return c

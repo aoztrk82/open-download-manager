@@ -4,11 +4,10 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -36,6 +35,9 @@ type State struct {
 	// Conns is the live state of each segment's connection, index-aligned with
 	// Segments. Only meaningful while Run is going; never persisted.
 	Conns []Conn `json:"-"`
+	// Limit is the current connection ceiling of this run (configured or
+	// learned from the server). Live only, like Conns.
+	Limit int `json:"-"`
 }
 
 // Connection states shown in the UI.
@@ -67,18 +69,31 @@ func (s *State) Downloaded() int64 {
 
 // Options configure a single run.
 type Options struct {
-	Req         proto.Request
-	Dir         string // destination directory
-	Filename    string // overrides the probed name when non-empty
-	Connections int    // parallel segments (default 4)
-	MinSplit    int64  // don't split below this size (default 1 MiB)
-	Retries     int    // per-segment retries (default 5)
-	RateLimit   int64  // bytes/sec across all segments, 0 = unlimited
+	Req      proto.Request
+	Dir      string // destination directory
+	Filename string // overrides the probed name when non-empty
+	// Connections is the most parallel connections one download may use
+	// (default: CPU threads, at least 2, at most 32). The real number is found
+	// while downloading: see pool.go.
+	Connections        int
+	InitialConnections int           // connections to start with (default 2)
+	GrowEvery          time.Duration // how often to consider one more connection (default 2s)
+	MinSplit           int64         // never leave a connection less than this to fetch (default 1 MiB)
+	Retries            int           // per-segment retries (default 5)
+	RateLimit          int64         // bytes/sec across all segments, 0 = unlimited
+
+	bufSize int // read buffer per connection; tests shrink it with MinSplit
 }
+
+// DefaultConnections is the per-download ceiling when none is configured.
+func DefaultConnections() int { return min(max(runtime.NumCPU(), 2), 32) }
 
 // Engine runs downloads.
 type Engine struct {
 	Sources proto.Registry
+
+	limMu  sync.Mutex
+	limits map[string]int // host -> connections it accepted (learned, in memory)
 }
 
 func New() *Engine { return &Engine{Sources: proto.Default()} }
@@ -88,10 +103,24 @@ func New() *Engine { return &Engine{Sources: proto.Default()} }
 // The state passed to onProgress is a snapshot and safe to keep.
 func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(State)) error {
 	if o.Connections <= 0 {
-		o.Connections = 4
+		o.Connections = DefaultConnections()
+	}
+	if o.InitialConnections <= 0 {
+		o.InitialConnections = 2
+	}
+	if o.GrowEvery <= 0 {
+		o.GrowEvery = 2 * time.Second
 	}
 	if o.MinSplit <= 0 {
 		o.MinSplit = 1 << 20
+	}
+	if o.bufSize <= 0 {
+		o.bufSize = 64 << 10
+	}
+	// A split point is at least MinSplit past any write in flight, and one
+	// write is at most one buffer: keep MinSplit above the buffer size.
+	if o.MinSplit < int64(2*o.bufSize) {
+		o.MinSplit = int64(2 * o.bufSize)
 	}
 	if o.Retries <= 0 {
 		o.Retries = 5
@@ -107,7 +136,7 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 			return fmt.Errorf("probe: %w", err)
 		}
 		st.Size, st.AcceptRanges, st.Filename = info.Size, info.AcceptRanges, info.Filename
-		st.Segments = plan(info, o)
+		st.Segments = plan(info)
 	}
 	name := o.Filename
 	if name == "" {
@@ -187,30 +216,11 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 		}
 	}()
 
-	errc := make(chan error, len(st.Segments))
-	var wg sync.WaitGroup
-	for i := range st.Segments {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			if err := e.runSegment(ctx, src, o, f, st, i, &mu, lim); err != nil {
-				errc <- err
-				cancel() // stop siblings
-			}
-		}(i)
-	}
-	wg.Wait()
+	p := &pool{e: e, ctx: ctx, cancel: cancel, src: src, o: o, f: f, st: st, mu: &mu, lim: lim}
+	first := p.run()
 	cancel()
 	<-tickDone
-	close(errc)
 
-	// Prefer the first real error over the cancellations it triggered.
-	var first error
-	for err := range errc {
-		if first == nil || (errors.Is(first, context.Canceled) && !errors.Is(err, context.Canceled)) {
-			first = err
-		}
-	}
 	if onProgress != nil {
 		onProgress(snapshot())
 	}
@@ -218,6 +228,9 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 		return first
 	}
 
+	if err := verify(st); err != nil {
+		return err // never rename a file with holes
+	}
 	if err := f.Sync(); err != nil {
 		return err
 	}
@@ -234,132 +247,13 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 	return nil
 }
 
-func plan(info proto.Info, o Options) []Segment {
+// plan starts with one segment covering the whole file; the pool splits it
+// as connections are added.
+func plan(info proto.Info) []Segment {
 	if info.Size < 0 {
 		return []Segment{{Start: 0, End: -1}}
 	}
-	if info.Size == 0 {
-		return []Segment{{Start: 0, End: 0}}
-	}
-	n := int64(1)
-	if info.AcceptRanges && info.Size >= o.MinSplit {
-		n = int64(o.Connections)
-		if max := info.Size / (256 << 10); n > max && max > 0 {
-			n = max
-		}
-	}
-	size := info.Size / n
-	segs := make([]Segment, 0, n)
-	for i := int64(0); i < n; i++ {
-		s := Segment{Start: i * size, End: (i + 1) * size}
-		if i == n-1 {
-			s.End = info.Size
-		}
-		segs = append(segs, s)
-	}
-	return segs
-}
-
-func (e *Engine) runSegment(ctx context.Context, src proto.Source, o Options, f *os.File,
-	st *State, i int, mu *sync.Mutex, lim *rate.Limiter) error {
-
-	setConn := func(state string, err error) {
-		mu.Lock()
-		c := &st.Conns[i]
-		c.State = state
-		if err != nil {
-			c.Error = err.Error()
-		} else if state == ConnActive || state == ConnDone {
-			c.Error = ""
-		}
-		mu.Unlock()
-	}
-	buf := make([]byte, 64<<10)
-	var lastErr error
-	for attempt := 0; attempt <= o.Retries; attempt++ {
-		if attempt > 0 {
-			mu.Lock()
-			st.Conns[i].Retries = attempt
-			mu.Unlock()
-			setConn(ConnRetrying, lastErr)
-			select {
-			case <-ctx.Done():
-				setConn(ConnStopped, nil)
-				return ctx.Err()
-			case <-time.After(backoff(attempt)):
-			}
-		}
-		mu.Lock()
-		sg := st.Segments[i]
-		mu.Unlock()
-		if sg.End >= 0 && sg.Start+sg.Done >= sg.End {
-			setConn(ConnDone, nil)
-			return nil
-		}
-		length := int64(-1)
-		if sg.End >= 0 && st.AcceptRanges {
-			length = sg.End - sg.Start - sg.Done
-		}
-		setConn(ConnConnecting, nil)
-		rc, err := src.Open(ctx, o.Req, sg.Start+sg.Done, length)
-		if err != nil {
-			lastErr = err
-			if ctx.Err() != nil {
-				setConn(ConnStopped, nil)
-				return ctx.Err()
-			}
-			continue
-		}
-		setConn(ConnActive, nil)
-		err = copySegment(ctx, rc, f, st, i, mu, lim, buf)
-		rc.Close()
-		if err == nil {
-			setConn(ConnDone, nil)
-			return nil
-		}
-		lastErr = err
-		if ctx.Err() != nil {
-			setConn(ConnStopped, nil)
-			return ctx.Err()
-		}
-	}
-	setConn(ConnFailed, lastErr)
-	return fmt.Errorf("segment %d: %w", i, lastErr)
-}
-
-func copySegment(ctx context.Context, rc io.Reader, f *os.File, st *State, i int,
-	mu *sync.Mutex, lim *rate.Limiter, buf []byte) error {
-	for {
-		n, rerr := rc.Read(buf)
-		if n > 0 {
-			if lim != nil {
-				if err := lim.WaitN(ctx, n); err != nil {
-					return err
-				}
-			}
-			mu.Lock()
-			off := st.Segments[i].Start + st.Segments[i].Done
-			mu.Unlock()
-			if _, err := f.WriteAt(buf[:n], off); err != nil {
-				return err
-			}
-			mu.Lock()
-			st.Segments[i].Done += int64(n)
-			mu.Unlock()
-		}
-		if rerr == io.EOF {
-			mu.Lock()
-			sg := st.Segments[i]
-			mu.Unlock()
-			if sg.End >= 0 && sg.Start+sg.Done < sg.End {
-				return io.ErrUnexpectedEOF
-			}
-			return nil
-		}
-		if rerr != nil {
-			return rerr
-		}
-	}
+	return []Segment{{Start: 0, End: info.Size}}
 }
 
 func backoff(attempt int) time.Duration {

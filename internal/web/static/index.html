@@ -131,7 +131,8 @@
   .cbox.active .bar i { background:var(--ok); }
   .cbox.connecting, .cbox.retrying { border-left-color:var(--warn); } .cbox.connecting .dot, .cbox.retrying .dot { background:var(--warn); }
   .cbox.connecting .s, .cbox.retrying .s { color:var(--warn); }
-  .cbox.done { border-left-color:var(--status); } .cbox.done .dot { background:var(--status); }
+  .cbox.done { border-left-color:var(--status); opacity:.7; } .cbox.done .dot { background:var(--status); }
+  .cbox.done .bar, .cbox.done .r.sp { display:none; } /* finished ranges stay small */
   .cbox.failed { border-left-color:var(--bad); } .cbox.failed .dot { background:var(--bad); } .cbox.failed .s { color:var(--bad); }
   @keyframes pulse { 50% { opacity:.3; } }
   .cempty { color:var(--muted); padding:6px 0; }
@@ -496,7 +497,7 @@ function renderConns(sel) {
   const active = list.filter(cn => cn.state === "active").length;
   const total = list.reduce((a, cn) => a + ((connSpeed.get(cn.index) || {}).bps || 0), 0);
   const sum = `<div class="csum"><span>${list.length === 1 ? t("conn.count1") : t("conn.countN", { n:list.length })}</span>
-    <span>${t("conn.receiving", { n:conns.live ? active : 0 })}</span>
+    <span>${conns.live && conns.max ? t("conn.receivingMax", { n:active, max:conns.max }) : t("conn.receiving", { n:conns.live ? active : 0 })}</span>
     ${conns.live ? `<span>${t("conn.combined", { speed:fmtBytes(total) })}</span>` : `<span>${t("status." + d.status)}</span>`}
     <span>${conns.acceptRanges ? t("conn.rangesYes") : t("conn.rangesNo")}</span></div>`;
   const map = size ? `<div class="cmap" title="${t("conn.map")}">${list.map(cn => {
@@ -512,7 +513,7 @@ function renderConns(sel) {
       <div class="bar"><i style="width:${(f * 100).toFixed(1)}%"></i></div>
       <div class="r"><span>${t("conn.range")}</span><b>${range}</b></div>
       <div class="r"><span>${t("conn.received")}</span><b>${fmtBytes(cn.done)}${len(cn) > 0 ? ` / ${fmtBytes(len(cn))} (${(f * 100).toFixed(1)}%)` : ""}</b></div>
-      <div class="r"><span>${t("conn.speed")}</span><b>${st === "active" ? fmtBytes(bps) + "/s" + (left ? " · " + left : "") : "—"}</b></div>
+      <div class="r sp"><span>${t("conn.speed")}</span><b>${st === "active" ? fmtBytes(bps) + "/s" + (left ? " · " + left : "") : "—"}</b></div>
       ${cn.retries ? `<div class="r"><span>${t("conn.retries")}</span><b>${cn.retries}</b></div>` : ""}
       ${cn.error && st !== "done" ? `<div class="e">${esc(cn.error)}</div>` : ""}
     </div>`;

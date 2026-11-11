@@ -3,6 +3,17 @@
 Newest first. Commit hashes refer to `git log`.
 
 ## 2026-11-12 - fifth session
+- Dynamic connections (owner: "why always 4?"). The engine starts with one segment and 2 connections, adds a
+  connection every 2 s while total speed still rises by >10%, up to CPU threads (owner's choice; clamped 2..32,
+  per download). A connection that finishes splits the largest remaining range (work stealing), so none idle at
+  the end. Extra connections the server refuses hand their range back and lower a per-host limit. Safety: writes
+  are clamped to the segment's End under the lock, split points stay past in-flight writes, HTTP Open checks the
+  Content-Range start and total (stale mirrors), and `verify()` must pass before the file is renamed.
+  Tests: growth, stealing stress, connection-limited server, servers ignoring Range / wrong size, pause+resume
+  through JSON after splits, resuming old fixed 4-segment state; engine suite 20x under -race.
+  Real network (scratch binary on :6801, isolated APPDATA): Linux Mint 22.3 Cinnamon ISO, 3,091,660,800 bytes in
+  36 s (~85 MiB/s), grew 2 -> 5 connections and stopped at the plateau (~100 MiB/s line), 16 segments after
+  stealing, SHA-256 equal to Mint's published `sha256sum.txt`.
 - Owner saw the program in English: Windows display language is en-US, regional format tr-TR, and the window
   took WebView2's language. Now the program has one shared language (`prefs.json`, `PUT /v1/prefs`,
   `info.lang`), defaulting to Turkish when the display language or the regional format is Turkish; choosing a

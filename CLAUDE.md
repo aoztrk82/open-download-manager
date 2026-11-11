@@ -14,7 +14,10 @@ download **asks "this computer or the server?"**; with no server it downloads lo
 ## Architecture (all Go under `internal/`, shared by CLI, server and tray)
 ```
 cmd/odm            main, cobra commands, tray + WebView2 window (windows), native-messaging host
-internal/engine    segmented, resumable download engine (State is persisted for resume)
+internal/engine    segmented, resumable download engine (State is persisted for resume); pool.go = dynamic
+                   connections: start with 2, add one while speed rises >10%, ceiling = CPU threads (2..32),
+                   finished connections split the largest running range, refused extra connections lower the
+                   per-host limit; verify() checks the ranges tile the file before .part is renamed
 internal/proto     Source interface; http.go (Range probe) and ftp.go (not yet run against a real server)
 internal/store     SQLite (modernc, no cgo): downloads table, state as JSON
 internal/queue     scheduler, persistence, events, Remove(deleteFile)

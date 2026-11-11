@@ -1,41 +1,18 @@
-# TODO (updated 2026-11-11, end of day)
+# TODO (updated 2026-11-12, end of day)
 
-## 1. Firefox double download: fixed, owner reports it works (idle-wait check not confirmed)
-Owner's report after the last commit (`b4c3464`): with the Firefox extension loaded, clicking the Gutenberg epub3
-button (https://www.gutenberg.org/ebooks/79962) makes **both** Firefox and ODM download the file. Two earlier fix
-attempts (cancel after add; then cancel first + removeFile + erase) did not solve it.
+## 0. Start here next session
+- Owner rebuilds `odm.exe` (quit ODM first) to get the fifth-session work: shared program language, dynamic
+  connections. Then walk through 2b and the language / connections items below and fix what they report.
+- Nothing from the fourth/fifth sessions has been looked at on screen except the extension (owner: "very nice").
+- Ideas waiting for a decision: global connection cap across downloads, connection ceiling as a UI setting,
+  ODM-side dedupe of the same URL added twice within seconds.
 
-What we know:
-- Server side is fine: preflight/CORS from a `moz-extension://` origin works, `POST /v1/downloads` works.
-- `web-ext lint` passes; the extension compiles; ODM *does* receive the download, so `onCreated` fires and the add works.
-- So the failure is in `takeFromBrowser()` (`extension/src/background.ts`): cancel/removeFile/erase are all wrapped
-  in `try/catch {}` and **errors are swallowed silently**. We never saw why cancel did not stop Firefox.
-- Not verified: whether the owner reloaded the extension after the last build (an old temporary add-on copy
-  loaded next to the new one would explain two ODM downloads); whether Firefox's own download panel is the
-  "Firefox download" they see; what the `[ODM]` console lines say.
-
-Diagnosis (2026-11-11, third session): the Gutenberg file is 302 -> 200 `application/epub+zip`, ~106 KB, **no
-`Content-Disposition`**. Firefox has saved it before the async `onCreated` handler can call `cancel()`.
-
-Done (compile/lint-checked only, NOT yet tested in Firefox):
-- Firefox now uses **blocking `webRequest.onHeadersReceived`** (main_frame/sub_frame, GET, status 200): a response
-  with `attachment` disposition or a content type Firefox does not render is cancelled and handed to ODM, so
-  Firefox never creates a download. `manifest.firefox.json` got `webRequest` + `webRequestBlocking`. Chrome has no
-  such permission, `ext.webRequest` is undefined there, and it keeps the `onCreated` path.
-- `onCreated` stays as fallback (e.g. "Save link as", renderable types) and skips URLs webRequest just took.
-- `takeFromBrowser` logs every step (`[ODM] ...` in the console) and reports when the browser kept its copy.
-
-Owner checklist:
-1. Remove every ODM entry in `about:debugging`, load `extension/dist/firefox` once.
-2. about:addons -> ODM -> Permissions: "Access your data for all websites" must be on (MV3 host permissions can
-   be ungranted; then webRequest sees nothing).
-3. Click the epub3 button: only ODM should download. Does the tab stay on the page, or show a
-   "blocked by an extension" error page? (error page = follow-up needed)
-4. Leave Firefox idle ~1 minute (background page gets suspended), then click epub3 again: the cold-wake path
-   waits for settings via a promise in the blocking listener.
-5. If it still fails: about:debugging -> ODM -> Inspect, paste the `[ODM]` lines.
-
-Still open: deduplication guard on the ODM side (same URL added twice within a few seconds -> ignore).
+## 1. Firefox double download - fixed (owner reports it works)
+Cause: small files (Gutenberg epub, ~106 KB, no `Content-Disposition`) were saved before `downloads.onCreated`
+could cancel them. Firefox now cancels download responses in blocking `webRequest.onHeadersReceived`; Chrome keeps
+`onCreated`. Not explicitly confirmed: the cold-wake case (Firefox idle ~1 minute, then click) and whether the
+tab ever shows a "blocked by an extension" page. If capture misbehaves: about:debugging -> ODM -> Inspect and
+read the `[ODM]` console lines.
 
 ## 2. Extension install from ODM (written 2026-11-11, needs the owner)
 - [x] Signed with AMO (unlisted) and embedded (0.2.0, then 0.3.0); keys come from the gitignored root `.env`.
@@ -68,10 +45,12 @@ Still open: deduplication guard on the ODM side (same URL added twice within a f
 - [ ] Native host survives browser job-object kill (tray must stay alive after the host exits, in both browsers).
 - [ ] FTP/FTPS against a real server (fake-server test not written yet).
 
-## 4. Download engine ideas (from the connections view)
-- Dynamic splitting: when a connection finishes its range, split the largest remaining one so all connections
-  stay busy to the end (today finished connections sit idle).
-- Connections per download is fixed at 4 (`queue.Config.Connections`); make it a setting / per-download option.
+## 4. Download engine
+- [ ] Connections tab with dynamic connections in the real window ("n / max receiving", compact finished boxes).
+- [x] Dynamic connections and work stealing (fifth session).
+- Growth stops at the first plateau; a later re-probe could find more speed on noisy links.
+- Ceiling is per download: 3 active downloads may open 3 x CPU threads connections; a global cap may be wanted.
+- Make the ceiling a UI setting (today: `serve --connections`, 0 = CPU threads).
 - Not visually checked yet: resize handles and the Connections tab in the real window (only `node --check`).
 
 ## 5. Small known issues

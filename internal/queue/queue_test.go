@@ -160,7 +160,7 @@ func TestConnectionsView(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Live || len(c.Connections) != 4 || c.Size != int64(len(data)) {
+	if c.Live || len(c.Connections) < 2 || c.Size != int64(len(data)) {
 		t.Fatalf("view: %+v", c)
 	}
 	var sum int64

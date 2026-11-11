@@ -52,8 +52,11 @@ func TestSegmentedDownload(t *testing.T) {
 	if !bytes.Equal(got, data) {
 		t.Fatal("content mismatch")
 	}
-	if len(st.Segments) != 4 {
-		t.Fatalf("want 4 segments, got %d", len(st.Segments))
+	if len(st.Segments) < 2 {
+		t.Fatalf("want parallel segments, got %d", len(st.Segments))
+	}
+	if err := verify(&st); err != nil {
+		t.Fatal(err)
 	}
 }
 

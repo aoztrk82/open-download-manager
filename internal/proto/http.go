@@ -109,7 +109,52 @@ func (h *HTTP) Open(ctx context.Context, r Request, offset, length int64) (io.Re
 		resp.Body.Close()
 		return nil, fmt.Errorf("http status %s", resp.Status)
 	}
-	return resp.Body, nil
+	total := resp.ContentLength
+	if ranged {
+		// Parallel connections write wherever the response says it starts:
+		// a response for another offset would corrupt the file.
+		start, t, ok := parseContentRange(resp.Header.Get("Content-Range"))
+		if !ok || start != offset {
+			resp.Body.Close()
+			return nil, fmt.Errorf("server sent range starting at %d, asked for %d", start, offset)
+		}
+		total = t
+	}
+	return &body{ReadCloser: resp.Body, total: total}, nil
+}
+
+// body is a response body that also knows the full size of the resource, so
+// the engine can refuse a mirror that serves a different file.
+type body struct {
+	io.ReadCloser
+	total int64 // -1 unknown
+}
+
+func (b *body) Total() int64 { return b.total }
+
+// parseContentRange reads "bytes 100-199/1000" (total may be "*").
+func parseContentRange(cr string) (start, total int64, ok bool) {
+	cr, found := strings.CutPrefix(strings.TrimSpace(cr), "bytes ")
+	if !found {
+		return 0, -1, false
+	}
+	rng, tot, found := strings.Cut(cr, "/")
+	if !found {
+		return 0, -1, false
+	}
+	a, _, found := strings.Cut(rng, "-")
+	if !found {
+		return 0, -1, false
+	}
+	start, err := strconv.ParseInt(strings.TrimSpace(a), 10, 64)
+	if err != nil {
+		return 0, -1, false
+	}
+	total = -1
+	if n, err := strconv.ParseInt(strings.TrimSpace(tot), 10, 64); err == nil {
+		total = n
+	}
+	return start, total, true
 }
 
 func filenameFrom(resp *http.Response) string {

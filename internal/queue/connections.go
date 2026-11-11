@@ -18,6 +18,7 @@ type Connections struct {
 	Size         int64        `json:"size"`
 	AcceptRanges bool         `json:"acceptRanges"`
 	Live         bool         `json:"live"` // true while the engine runs it
+	Max          int          `json:"max"`  // live: current connection ceiling
 	Connections  []Connection `json:"connections"`
 }
 
@@ -34,7 +35,7 @@ func (m *Manager) Connections(id string) (*Connections, error) {
 		}
 		st = d.State
 	}
-	out := &Connections{Size: st.Size, AcceptRanges: st.AcceptRanges, Live: live, Connections: []Connection{}}
+	out := &Connections{Size: st.Size, AcceptRanges: st.AcceptRanges, Live: live, Max: st.Limit, Connections: []Connection{}}
 	for i, sg := range st.Segments {
 		c := Connection{Index: i, Start: sg.Start, End: sg.End, Done: sg.Done}
 		switch {

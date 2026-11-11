@@ -34,7 +34,7 @@ type AddRequest struct {
 type Config struct {
 	DefaultDir    string
 	MaxConcurrent int   // simultaneous downloads (default 3)
-	Connections   int   // segments per download (default 4)
+	Connections   int   // max connections per download (0 = CPU threads); the engine finds the real number
 	RateLimit     int64 // bytes/sec per download, 0 = unlimited
 }
 
