@@ -1,6 +1,6 @@
 # TODO (updated 2026-11-11, end of day)
 
-## 1. OPEN BUG - start here tomorrow: Firefox still downloads by itself, and ODM downloads too
+## 1. Firefox double download: fixed, owner reports it works (idle-wait check not confirmed)
 Owner's report after the last commit (`b4c3464`): with the Firefox extension loaded, clicking the Gutenberg epub3
 button (https://www.gutenberg.org/ebooks/79962) makes **both** Firefox and ODM download the file. Two earlier fix
 attempts (cancel after add; then cancel first + removeFile + erase) did not solve it.
@@ -38,12 +38,21 @@ Owner checklist:
 Still open: deduplication guard on the ODM side (same URL added twice within a few seconds -> ignore).
 
 ## 2. Extension install from ODM (written 2026-11-11, needs the owner)
-- [x] Signed 0.2.0 with AMO (unlisted) and embedded; keys come from the gitignored root `.env`.
+- [x] Signed with AMO (unlisted) and embedded (0.2.0, then 0.3.0); keys come from the gitignored root `.env`.
 - [ ] Integrations > Install in Firefox: shows Firefox's "Add ODM?" prompt (firefox.exe <xpi path>, untested).
 - [ ] Chrome/Edge: "Open ... Extensions Page" really opens chrome://extensions / edge://extensions from the
       command line (unverified); Load unpacked from the folder; extension id equals `chromeExtensionID`.
 - [ ] Tray restart after an extension change rewrites the folder while Chrome has it loaded; Chrome picks it up.
 - [ ] Popup version warning and the "last seen" column after installing.
+
+## 2b. Fourth session work, never seen on screen (owner was gaming)
+- [ ] Download dialog in Firefox and Chrome: layout, Enter/Esc, Browse… (folder chooser must come to the front,
+      `cmd/odm/pickfolder_windows.go`), Later, "let the browser", "don't ask again", server destination.
+- [ ] Popup and settings page look (light and dark), language switch.
+- [ ] Web UI in Turkish: menus, sidebar icons, statuses, dialogs; uppercase sidebar headings show "İ".
+- [ ] Tray menu in Turkish; tray, window and taskbar icons.
+- [ ] Exe icon in Explorer: in `cmd/odm` run `go run github.com/tc-hib/go-winres@v0.3.3 simply --icon assets/odm.ico`
+      (writes `rsrc_windows_*.syso`), check `--manifest` does not change DPI behavior, commit the .syso.
 
 ## 3. Verify (written but never run against the real thing)
 - [ ] Tray "Quit ODM" closes an open window within ~3 s (window pings the daemon, `runWindow` in `gui_windows.go`).
@@ -54,7 +63,6 @@ Still open: deduplication guard on the ODM side (same URL added twice within a f
 - [ ] Chrome: load `extension/dist/chrome`, compare the shown extension id with `chromeExtensionID`
       (`linelmlgjkggjofcfgljpdkfgdjgabkl`); test native-host start with the tray closed.
 - [ ] Native host survives browser job-object kill (tray must stay alive after the host exits, in both browsers).
-- [ ] Chooser window (`choose.html`) appears when a server URL is configured; closing it cancels the download.
 - [ ] FTP/FTPS against a real server (fake-server test not written yet).
 
 ## 4. Download engine ideas (from the connections view)

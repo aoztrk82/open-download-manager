@@ -53,10 +53,25 @@ GOOS=linux go vet ./cmd/...                   # keep non-windows building
 cd extension && pnpm install && pnpm build    # -> extension/dist/{chrome,firefox} + internal/extbundle/files/chrome
 cd extension && pnpm sign                     # AMO keys from env or root .env (MOZILLA_JWT_ISSUER/KEY, gitignored);
                                               # uploads to Mozilla, version is burned: bump package.json first
-cd extension && pnpm typecheck
+cd extension && pnpm typecheck && pnpm test   # test = pure helpers in src/util.ts
+node scripts/i18n-check.mjs                   # en/tr key parity for Web UI and extension
+go run tools/genicons/main.go                 # redraw every icon (extension, Web UI, tray, window)
 cd extension && pnpm dlx web-ext lint -s dist/firefox
 ```
 Web UI has no build step; check syntax by extracting the `<script>` and running `node --check`.
+
+## UI conventions
+- **Two languages, English and Turkish.** Web UI strings live in `internal/web/static/i18n.js` (`t("key")`,
+  `data-i18n*` attributes; View menu picks the language). Extension strings live in `extension/src/i18n.ts`
+  (setting "language", default = browser language); manifest name/description in `extension/_locales`.
+  Tray menu follows the Windows display language (`cmd/odm/lang_windows.go`). Never hard-code UI text: add the
+  key to every language and run `node scripts/i18n-check.mjs`.
+- Extension pages build DOM with `h()` / `setText()` from `i18n.ts`, not `innerHTML` (AMO lint warns on it).
+- Download dialog (`extension/static/download.html`): shown before every captured download unless the
+  "askBeforeDownload" setting is off; name, size (browser hints, else `POST /v1/probe`), this computer or the
+  server, folder (`dir`, recent per destination, "Browse…" = `POST /v1/pickfolder`, local daemon only), Download /
+  Later (`paused`) / browser. Server mode only accepts folders inside its download dir (`checkDir` in
+  `internal/api/dialog.go`); the local daemon accepts any absolute folder (`Server.AnyDir`).
 
 ## Rules for working in this repo (learned the hard way)
 - **Never open a window, launch the GUI or take screenshots unless the owner says so.** They may be gaming or working.

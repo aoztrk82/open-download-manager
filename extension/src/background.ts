@@ -1,15 +1,19 @@
 import {
-  ensureLocal,
+  clientFor,
   ext,
   loadSettings,
   localClient,
   remoteOf,
   report,
   scratch,
+  targetName,
   type DownloadRequest,
+  type Hints,
   type Pending,
   type Settings,
 } from "./api";
+import { t } from "./i18n";
+import { dispositionName } from "./util";
 
 const CAPTURE_SCHEMES = ["http:", "https:", "ftp:"];
 
@@ -23,23 +27,25 @@ const settings = () =>
     current = s;
     return s;
   }));
-ext.storage.onChanged.addListener(() => {
+ext.storage.onChanged.addListener((changes) => {
   cached = null;
-  void settings();
+  void settings().then(() => {
+    if (changes.language) ext.contextMenus.update("odm-link", { title: t("bg.menu") }).catch(() => {});
+  });
+});
+void settings();
 
 // Tell a running ODM which extension version this browser has (shown in
 // Integrations). Never starts ODM: that would happen on every browser start.
 localClient()
   .info()
   .catch(() => {});
-});
-void settings();
 
 // URLs the webRequest path already handed to ODM; onCreated must not take them again.
 const taken = new Map<string, number>();
 function recentlyTaken(...urls: string[]): boolean {
   const now = Date.now();
-  for (const [u, t] of taken) if (t < now) taken.delete(u);
+  for (const [u, exp] of taken) if (exp < now) taken.delete(u);
   return urls.some((u) => taken.has(u));
 }
 
@@ -47,12 +53,12 @@ function recentlyTaken(...urls: string[]): boolean {
 const skip = new Map<string, number>();
 function isSkipped(...urls: string[]): boolean {
   const now = Date.now();
-  for (const [u, t] of skip) if (t < now) skip.delete(u);
+  for (const [u, exp] of skip) if (exp < now) skip.delete(u);
   return urls.some((u) => skip.has(u));
 }
-async function browserDownload(url: string) {
+async function browserDownload(url: string, filename?: string) {
   skip.set(url, Date.now() + 60_000); // registered before the call: onCreated may fire first
-  await ext.downloads.download({ url });
+  await ext.downloads.download(filename ? { url, filename } : { url });
 }
 
 async function cookieHeader(url: string): Promise<string> {
@@ -131,6 +137,16 @@ function isDownloadResponse(hs: Header[] | undefined): boolean {
   return !rendersInline(type);
 }
 
+function hintsFromHeaders(hs: Header[] | undefined): Hints {
+  const size = Number(header(hs, "content-length"));
+  return {
+    filename: dispositionName(header(hs, "content-disposition")) || undefined,
+    size: size > 0 ? size : undefined,
+    mime: header(hs, "content-type").split(";")[0].trim() || undefined,
+    resumable: /bytes/i.test(header(hs, "accept-ranges")) || undefined,
+  };
+}
+
 interface HeadersDetails {
   url: string;
   method: string;
@@ -155,18 +171,18 @@ function onHeaders(d: HeadersDetails): BlockingResponse {
   }
   if (!CAPTURE_SCHEMES.includes(scheme)) return {};
   if (!isDownloadResponse(d.responseHeaders)) return {};
-  const len = Number(header(d.responseHeaders, "content-length"));
-  if (s.minSizeMB > 0 && len > 0 && len < s.minSizeMB * 1024 * 1024) return {};
+  const hints = hintsFromHeaders(d.responseHeaders);
+  if (s.minSizeMB > 0 && hints.size && hints.size < s.minSizeMB * 1024 * 1024) return {};
 
   taken.set(d.url, Date.now() + 10_000);
   console.log(`[ODM] webRequest took ${d.url}`);
-  // Hand off after returning: starting ODM or opening the chooser takes time
+  // Hand off after returning: starting ODM or opening the dialog takes time
   // and the request must not hang meanwhile.
   void (async () => {
     try {
-      await handOff(await buildRequest(d.url, d.originUrl || d.documentUrl), s);
+      await handOff(await buildRequest(d.url, d.originUrl || d.documentUrl), hints, s);
     } catch (e) {
-      await report(false, `Capture error: ${(e as Error).message}`);
+      await report(false, t("bg.error", { err: (e as Error).message }));
     }
   })();
   return { cancel: true };
@@ -202,47 +218,54 @@ if (webRequest?.onHeadersReceived) {
 }
 
 /**
- * Where does it go? With a remote server configured the user chooses every time
- * (this computer or the server); otherwise it simply downloads locally.
+ * Where does it go? By default the download dialog asks (name, folder, this
+ * computer or the server) before anything starts. With asking turned off it
+ * goes straight to the default destination.
  */
-async function handOff(req: DownloadRequest, s: Settings) {
-  if (remoteOf(s)) {
-    await openChooser(req);
+async function handOff(req: DownloadRequest, hints: Hints, s: Settings) {
+  if (s.askBeforeDownload) {
+    await openDialog(req, hints);
     return;
   }
+  const target = s.defaultTarget === "remote" && remoteOf(s) ? "remote" : "local";
   try {
-    const odm = await ensureLocal();
-    await odm.add(req);
-    await report(true, `Sent to ODM: ${req.url}`);
+    await (await clientFor(target, s)).add(req, { filename: hints.filename });
+    await report(true, t("bg.sent", { where: targetName(target, s), url: req.url }));
   } catch (e) {
-    await report(false, `${(e as Error).message} The download was given back to the browser.`);
+    if (target === "remote") {
+      await report(false, (e as Error).message);
+      return;
+    }
+    await report(false, t("bg.giveBack", { err: (e as Error).message }));
     await browserDownload(req.url);
   }
 }
 
-async function openChooser(req: DownloadRequest) {
+async function openDialog(req: DownloadRequest, hints: Hints) {
   const id = crypto.randomUUID();
   const key = `pending:${id}`;
-  await scratch.set({ [key]: { req } satisfies Pending });
+  await scratch.set({ [key]: { req, hints } satisfies Pending });
   const win = await ext.windows.create({
-    url: ext.runtime.getURL(`choose.html?id=${id}`),
+    url: ext.runtime.getURL(`download.html?id=${id}`),
     type: "popup",
-    width: 480,
-    height: 360,
+    width: 540,
+    height: 600,
   });
-  await scratch.set({ [key]: { req, windowId: win.id } satisfies Pending });
+  await scratch.set({ [key]: { req, hints, windowId: win.id } satisfies Pending });
 }
 
-// Closing the chooser without picking cancels the download: say so instead of
+// Closing the dialog without picking cancels the download: say so instead of
 // letting it vanish silently. (A pick removes the pending record first.)
 ext.windows.onRemoved.addListener(async (windowId) => {
   const all = await scratch.get(null);
   for (const [key, value] of Object.entries(all)) {
     if (!key.startsWith("pending:") || (value as Pending).windowId !== windowId) continue;
     await scratch.remove(key);
-    await report(false, `Download cancelled: ${(value as Pending).req.url}`);
+    await report(false, t("bg.cancelled", { url: (value as Pending).req.url }));
   }
 });
+
+const baseName = (p: string) => p.split(/[\\/]/).pop() ?? "";
 
 ext.downloads.onCreated.addListener(async (item) => {
   try {
@@ -263,7 +286,8 @@ ext.downloads.onCreated.addListener(async (item) => {
       return;
     }
     if (!CAPTURE_SCHEMES.includes(scheme)) return; // blob:, data:, etc. stay in the browser
-    if (s.minSizeMB > 0 && item.fileSize > 0 && item.fileSize < s.minSizeMB * 1024 * 1024) return;
+    const size = item.fileSize > 0 ? item.fileSize : item.totalBytes > 0 ? item.totalBytes : 0;
+    if (s.minSizeMB > 0 && size > 0 && size < s.minSizeMB * 1024 * 1024) return;
 
     // Cancel first, before any network call; otherwise a small file is already
     // saved by the time ODM answers and you end up with two copies.
@@ -272,36 +296,34 @@ ext.downloads.onCreated.addListener(async (item) => {
     // cancel fails when the browser already finished; then only removeFile keeps
     // us from leaving a second copy, so say so if that failed too.
     if (failed.some((f) => f.startsWith("cancel")) && failed.some((f) => f.startsWith("removeFile"))) {
-      await report(false, `Browser kept its copy (${failed.join("; ")})`);
+      await report(false, t("bg.kept", { why: failed.join("; ") }));
     }
-    await handOff(await buildRequest(url, item.referrer), s);
+    const hints: Hints = { filename: baseName(item.filename) || undefined, size: size || undefined, mime: item.mime || undefined };
+    await handOff(await buildRequest(url, item.referrer), hints, s);
   } catch (e) {
-    await report(false, `Capture error: ${(e as Error).message}`);
+    await report(false, t("bg.error", { err: (e as Error).message }));
   }
 });
 
-ext.runtime.onMessage.addListener((msg: { type?: string; url?: string }, _sender, sendResponse) => {
+ext.runtime.onMessage.addListener((msg: { type?: string; url?: string; filename?: string }, _sender, sendResponse) => {
   if (msg?.type !== "browser-download" || !msg.url) return false;
-  browserDownload(msg.url).then(
+  browserDownload(msg.url, msg.filename).then(
     () => sendResponse({ ok: true }),
     (e: Error) => sendResponse({ ok: false, error: e.message }),
   );
   return true; // async response
 });
 
-ext.runtime.onInstalled.addListener(() => {
-  ext.contextMenus.create({
-    id: "odm-link",
-    title: "Download with ODM",
-    contexts: ["link"],
-  });
+ext.runtime.onInstalled.addListener(async () => {
+  await settings();
+  ext.contextMenus.create({ id: "odm-link", title: t("bg.menu"), contexts: ["link"] });
 });
 
 ext.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== "odm-link" || !info.linkUrl) return;
   try {
-    await handOff(await buildRequest(info.linkUrl, tab?.url), await settings());
+    await handOff(await buildRequest(info.linkUrl, tab?.url), {}, await settings());
   } catch (e) {
-    await report(false, `Capture error: ${(e as Error).message}`);
+    await report(false, t("bg.error", { err: (e as Error).message }));
   }
 });

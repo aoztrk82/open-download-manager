@@ -1,48 +1,67 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>ODM settings</title>
+<html lang="en"><head><meta charset="utf-8"><title>ODM</title>
+<link rel="stylesheet" href="ui.css">
 <style>
-  body { font: 14px system-ui, sans-serif; max-width: 520px; margin: 24px auto; padding: 0 16px; }
-  fieldset { border: 1px solid #d4d4d8; border-radius: 6px; margin: 0 0 16px; padding: 10px 14px 14px; }
-  legend { font-weight: 600; padding: 0 6px; }
-  label { display: block; margin: 10px 0 4px; font-weight: 600; }
-  label.row { font-weight: 400; display: flex; gap: 8px; align-items: center; margin: 0; }
-  input[type=text], input[type=password], input[type=number] { width: 100%; padding: 6px 8px; box-sizing: border-box; }
-  button { margin: 12px 8px 0 0; padding: 6px 14px; }
-  .ok { color: #16a34a; } .bad { color: #dc2626; }
-  small { color: #6b7280; display: block; margin-top: 4px; }
-  p.status { min-height: 18px; margin: 8px 0 0; }
+  body { padding: 28px 16px 80px; }
+  main { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; }
+  header .brand { font-size: 18px; } header .brand img { width: 28px; height: 28px; }
+  .card { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .card h2 { margin: 0; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card h2 .ic { color: var(--accent); }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field > span { font-weight: 600; font-size: 12px; }
+  .help { font-size: 12px; color: var(--muted); }
+  .switchrow { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .switchrow div { display: flex; flex-direction: column; gap: 2px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .status { font-size: 12px; min-height: 18px; }
+  .savebar { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--line); }
+  .savebar > div { max-width: 600px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .savebar .status { flex: 1; }
 </style></head>
 <body>
-<h2>ODM settings</h2>
+<main>
+<header>
+  <div class="brand"><img src="icons/icon-48.png" alt=""><div>ODM<br><small data-i18n="brand.tagline">Open Download Manager</small></div></div>
+  <span class="badge" id="ver"></span>
+</header>
 
-<fieldset>
-  <legend>This computer</legend>
-  <small>Nothing to set up: downloads go to the ODM on this computer. If it is closed, the extension starts it.</small>
-  <p class="status" id="local-status">Checking...</p>
-  <button type="button" id="start-local">Start / test local ODM</button>
-</fieldset>
+<section class="card">
+  <h2><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span data-i18n="opt.general">General</span></h2>
+  <label class="field"><span data-i18n="opt.language">Language</span>
+    <select id="language"><option value="auto" data-i18n="opt.langAuto">Browser language</option><option value="en">English</option><option value="tr">Türkçe</option></select></label>
+  <label class="switchrow"><div><b data-i18n="opt.capture">Capture browser downloads</b></div>
+    <span class="switch"><input type="checkbox" id="enabled"><span></span></span></label>
+  <label class="switchrow"><div><b data-i18n="opt.ask">Ask before every download</b><span class="help" data-i18n="opt.askHelp"></span></div>
+    <span class="switch"><input type="checkbox" id="askBeforeDownload"><span></span></span></label>
+  <label class="field"><span data-i18n="opt.defaultTarget">When not asking, send downloads to</span>
+    <select id="defaultTarget"><option value="local" data-i18n="opt.local">This computer</option><option value="remote" id="opt-remote"></option></select></label>
+  <label class="field"><span data-i18n="opt.minSize">Only capture files larger than (MB)</span>
+    <input type="number" id="minSizeMB" min="0" step="1"></label>
+</section>
 
-<form id="form">
-  <fieldset>
-    <legend>Server (optional)</legend>
-    <small>If you add a server, every captured download asks whether it should go to this computer or to the server. Leave empty to always download locally.</small>
-    <label for="serverUrl">Server URL</label>
-    <input type="text" id="serverUrl" placeholder="https://odm.example.com:6800">
-    <label for="token">Server token</label>
-    <input type="password" id="token" autocomplete="off">
-    <small>The token the server was started with (<code>odm serve --listen ... --token ...</code>).</small>
-    <button type="button" id="clear-server">Remove server</button>
-  </fieldset>
+<section class="card">
+  <h2><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span data-i18n="opt.local">This computer</span></h2>
+  <div class="help" data-i18n="opt.localHelp"></div>
+  <div class="row"><span class="badge" id="local-badge"><i class="dot"></i></span><span class="status" id="local-status"></span></div>
+  <div><button type="button" class="btn" id="start-local" data-i18n="opt.startTest">Start / test local ODM</button></div>
+</section>
 
-  <fieldset>
-    <legend>Capturing</legend>
-    <label class="row"><input type="checkbox" id="enabled"> Capture browser downloads</label>
-    <label for="minSizeMB">Only capture files larger than (MB, 0 = all)</label>
-    <input type="number" id="minSizeMB" min="0">
-  </fieldset>
+<section class="card">
+  <h2><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01"/></svg><span data-i18n="opt.server">Server (optional)</span></h2>
+  <div class="help" data-i18n="opt.serverHelp"></div>
+  <label class="field"><span data-i18n="opt.serverUrl">Server URL</span>
+    <input type="text" id="serverUrl" placeholder="https://odm.example.com:6800" spellcheck="false"></label>
+  <label class="field"><span data-i18n="opt.token">Server token</span>
+    <input type="password" id="token" autocomplete="off"><span class="help" data-i18n="opt.tokenHelp"></span></label>
+  <div><button type="button" class="btn" id="clear-server" data-i18n="opt.removeServer">Remove server</button></div>
+</section>
+</main>
 
-  <button type="submit">Save &amp; test</button>
-  <p class="status" id="status"></p>
-</form>
+<div class="savebar"><div>
+  <span class="status" id="status" role="status"></span>
+  <button type="button" class="btn primary" id="save" data-i18n="opt.save">Save</button>
+</div></div>
 <script src="options.js" type="module"></script>
 </body></html>

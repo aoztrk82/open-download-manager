@@ -64,6 +64,8 @@ func startDaemon(o daemonOpts) (*daemon, error) {
 	if o.Reveal {
 		srv.Reveal = revealInFolder
 		srv.Integrations = newIntegrations()
+		srv.AnyDir = true
+		srv.PickFolder = pickFolder
 	}
 	ln, err := net.Listen("tcp", o.Addr)
 	if err != nil {

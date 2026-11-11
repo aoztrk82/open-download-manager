@@ -1,25 +1,40 @@
 <!doctype html>
-<html><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="ui.css">
 <style>
-  body { font: 13px system-ui, sans-serif; width: 340px; margin: 0; padding: 10px; }
-  .top { display: flex; justify-content: space-between; align-items: center; }
-  ul { list-style: none; padding: 0; margin: 8px 0; max-height: 300px; overflow: auto; }
-  li { padding: 6px 0; border-bottom: 1px solid #e5e7eb; }
-  .name { font-weight: 600; overflow-wrap: anywhere; }
-  .meta { color: #6b7280; font-size: 12px; }
-  #err, #last.bad { color: #dc2626; }
-  #ver { color: #b45309; }
-  #last.ok { color: #16a34a; }
-  #last { margin-top: 6px; overflow-wrap: anywhere; }
-  button { margin-right: 6px; }
+  body { width: 360px; }
+  header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header .brand { flex: 1; }
+  #state.badge { cursor: default; }
+  .notice { margin: 8px 12px 0; padding: 7px 10px; border-radius: 6px; font-size: 12px; border: 1px solid currentColor; }
+  .notice.warn { color: var(--warn); } .notice.bad { color: var(--bad); }
+  #last { margin: 8px 12px 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; display: flex; gap: 6px; }
+  #last.ok .dot { color: var(--ok); } #last.bad .dot { color: var(--bad); }
+  #last .dot { margin-top: 6px; flex-shrink: 0; }
+  ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 330px; overflow: auto; }
+  li { padding: 8px 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+  li .row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--muted); }
+  li .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li .st-active { color: var(--ok); } li .st-failed { color: var(--bad); } li .st-paused { color: var(--warn); }
+  .empty { padding: 22px 12px; text-align: center; color: var(--muted); border-top: 1px solid var(--line); margin-top: 8px; }
+  footer { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--panel); }
+  footer .btn { flex: 1; }
 </style></head>
 <body>
-<div class="top"><strong>ODM</strong><label><input type="checkbox" id="enabled"> Capture</label></div>
-<div id="err"></div>
-<div id="ver"></div>
-<button id="start" hidden>Start ODM</button>
-<div id="last" class="meta"></div>
+<header>
+  <div class="brand"><img src="icons/icon-32.png" alt="">ODM</div>
+  <span class="badge" id="state"></span>
+  <label class="switch" data-i18n-title="pop.capture"><input type="checkbox" id="enabled"><span></span></label>
+</header>
+<div class="notice warn" id="ver" hidden></div>
+<div class="notice bad" id="err" hidden></div>
+<div id="last"><i class="dot"></i><span id="last-text"></span></div>
 <ul id="list"></ul>
-<button id="open">Open web UI</button><button id="settings">Settings</button>
+<div class="empty" id="empty" hidden></div>
+<footer>
+  <button class="btn primary" id="open" type="button" data-i18n="pop.open">Open ODM</button>
+  <button class="btn" id="start" type="button" data-i18n="pop.start" hidden>Start ODM</button>
+  <button class="btn" id="settings" type="button" data-i18n="pop.settings">Settings</button>
+</footer>
 <script src="popup.js" type="module"></script>
 </body></html>

@@ -15,7 +15,7 @@ for (const target of ["chrome", "firefox"]) {
       background: "src/background.ts",
       popup: "src/popup.ts",
       options: "src/options.ts",
-      choose: "src/choose.ts",
+      download: "src/download.ts",
     },
     outdir: out,
     bundle: true,
@@ -24,6 +24,7 @@ for (const target of ["chrome", "firefox"]) {
     logLevel: "warning",
   });
   cpSync("static", out, { recursive: true });
+  cpSync("_locales", `${out}/_locales`, { recursive: true });
   const manifest = JSON.parse(readFileSync(`manifest.${target}.json`, "utf8"));
   manifest.version = version;
   writeFileSync(`${out}/manifest.json`, JSON.stringify(manifest, null, 2) + "\n");

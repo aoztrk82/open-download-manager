@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ODM</title>
+<script src="i18n.js"></script>
+<link rel="icon" href="favicon.ico">
 <style>
   :root {
     --bg:#1e1e1e; --panel:#252526; --side:#252526; --bar:#333333; --menu:#3c3c3c; --fg:#cccccc; --fg-strong:#ffffff;
@@ -26,7 +28,8 @@
 
   /* menu bar */
   #menubar { display:flex; background:var(--bar); height:30px; align-items:stretch; flex-shrink:0; border-bottom:1px solid var(--line); }
-  #menubar .brand { padding:0 12px; display:flex; align-items:center; font-weight:600; color:var(--fg-strong); }
+  #menubar .brand { padding:0 12px; display:flex; align-items:center; gap:7px; font-weight:600; color:var(--fg-strong); }
+  #menubar .brand img { pointer-events:none; }
   .menu { position:relative; }
   .menu > .title { height:100%; padding:0 10px; display:flex; align-items:center; cursor:default; }
   .menu:hover > .title, .menu.open > .title { background:var(--hover); }
@@ -66,7 +69,7 @@
   .nav { display:flex; align-items:center; gap:8px; padding:4px 14px; cursor:default; }
   .nav:hover { background:var(--hover); }
   .nav.active { background:var(--sel); color:var(--fg-strong); }
-  .nav .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0; }
+  .nav .ic { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
   .nav .count { margin-left:auto; color:var(--muted); font-size:12px; }
   .nav.active .count { color:var(--fg-strong); }
   #center { flex:1; display:flex; flex-direction:column; min-width:0; }
@@ -164,6 +167,7 @@
   .err { color:var(--bad); font-size:12px; min-height:16px; }
   #login .dialog { margin-top:8vh; }
   .dialog.wide { width:min(640px, 94vw); }
+  .dialog .dirrow { display:flex; gap:6px; } .dialog .dirrow input { flex:1; min-width:0; }
   .integ { display:flex; flex-direction:column; gap:8px; }
   .integ .row { border:1px solid var(--line); border-radius:3px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
   .integ .head { display:flex; align-items:center; gap:10px; }
@@ -178,88 +182,91 @@
 <body>
 
 <div id="menubar">
-  <div class="brand">ODM</div>
-  <div class="menu" data-menu="file"><div class="title">File</div><div class="dropdown">
-    <div class="item" data-act="add"><span>Add Download…</span><span class="key">Ctrl+N</span></div>
+  <div class="brand"><img src="icon.png" alt="" width="16" height="16">ODM</div>
+  <div class="menu" data-menu="file"><div class="title" data-i18n="menu.file">File</div><div class="dropdown">
+    <div class="item" data-act="add"><span data-i18n="m.add">Add Download…</span><span class="key">Ctrl+N</span></div>
     <div class="sep"></div>
-    <div class="item" data-act="pauseAll"><span>Pause All</span></div>
-    <div class="item" data-act="resumeAll"><span>Resume All</span></div>
+    <div class="item" data-act="pauseAll"><span data-i18n="m.pauseAll">Pause All</span></div>
+    <div class="item" data-act="resumeAll"><span data-i18n="m.resumeAll">Resume All</span></div>
     <div class="sep"></div>
-    <div class="item" data-act="clearDone"><span>Remove Completed</span></div>
+    <div class="item" data-act="clearDone"><span data-i18n="m.clearDone">Remove Completed</span></div>
   </div></div>
-  <div class="menu" data-menu="edit"><div class="title">Edit</div><div class="dropdown">
-    <div class="item" data-act="selectAll"><span>Select All</span><span class="key">Ctrl+A</span></div>
+  <div class="menu" data-menu="edit"><div class="title" data-i18n="menu.edit">Edit</div><div class="dropdown">
+    <div class="item" data-act="selectAll"><span data-i18n="m.selectAll">Select All</span><span class="key">Ctrl+A</span></div>
     <div class="sep"></div>
-    <div class="item" data-act="pause"><span>Pause</span></div>
-    <div class="item" data-act="resume"><span>Resume</span></div>
-    <div class="item" data-act="remove"><span>Remove</span><span class="key">Del</span></div>
+    <div class="item" data-act="pause"><span data-i18n="m.pause">Pause</span></div>
+    <div class="item" data-act="resume"><span data-i18n="m.resume">Resume</span></div>
+    <div class="item" data-act="remove"><span data-i18n="m.remove">Remove</span><span class="key">Del</span></div>
     <div class="sep"></div>
-    <div class="item" data-act="copyUrl"><span>Copy URL</span><span class="key">Ctrl+C</span></div>
-    <div class="item" data-act="reveal" data-needs="reveal"><span>Show in Folder</span></div>
+    <div class="item" data-act="copyUrl"><span data-i18n="m.copyUrl">Copy URL</span><span class="key">Ctrl+C</span></div>
+    <div class="item" data-act="reveal" data-needs="reveal"><span data-i18n="m.reveal">Show in Folder</span></div>
   </div></div>
-  <div class="menu" data-menu="view"><div class="title">View</div><div class="dropdown">
-    <div class="item check" data-act="toggleSidebar" id="m-sidebar"><span>Sidebar</span><span class="key">Ctrl+B</span></div>
-    <div class="item check" data-act="toggleDetails" id="m-details"><span>Details Panel</span><span class="key">Ctrl+J</span></div>
-    <div class="item check" data-act="toggleStatus" id="m-status"><span>Status Bar</span></div>
+  <div class="menu" data-menu="view"><div class="title" data-i18n="menu.view">View</div><div class="dropdown">
+    <div class="item check" data-act="toggleSidebar" id="m-sidebar"><span data-i18n="m.sidebar">Sidebar</span><span class="key">Ctrl+B</span></div>
+    <div class="item check" data-act="toggleDetails" id="m-details"><span data-i18n="m.details">Details Panel</span><span class="key">Ctrl+J</span></div>
+    <div class="item check" data-act="toggleStatus" id="m-status"><span data-i18n="m.status">Status Bar</span></div>
     <div class="sep"></div>
-    <div class="item" data-act="theme"><span>Toggle Light/Dark Theme</span></div>
-    <div class="item" data-act="resetLayout"><span>Reset Layout</span></div>
+    <div class="item" data-act="theme"><span data-i18n="m.theme">Toggle Light/Dark Theme</span></div>
+    <div class="item" data-act="resetLayout"><span data-i18n="m.resetLayout">Reset Layout</span></div>
+    <div class="sep"></div>
+    <div class="item check lang" data-act="lang" data-lang="en"><span>English</span></div>
+    <div class="item check lang" data-act="lang" data-lang="tr"><span>Türkçe</span></div>
   </div></div>
-  <div class="menu" data-menu="tools"><div class="title">Tools</div><div class="dropdown">
-    <div class="item" data-act="signout"><span>Change Server Token…</span></div>
+  <div class="menu" data-menu="tools"><div class="title" data-i18n="menu.tools">Tools</div><div class="dropdown">
+    <div class="item" data-act="signout"><span data-i18n="m.token">Change Server Token…</span></div>
   </div></div>
-  <div class="menu" data-menu="integrations" data-needs="integrate" hidden><div class="title">Integrations</div><div class="dropdown">
-    <div class="item" data-act="integrations"><span>Browser Extensions…</span></div>
+  <div class="menu" data-menu="integrations" data-needs="integrate" hidden><div class="title" data-i18n="menu.integrations">Integrations</div><div class="dropdown">
+    <div class="item" data-act="integrations"><span data-i18n="m.integrations">Browser Extensions…</span></div>
   </div></div>
-  <div class="menu" data-menu="help"><div class="title">Help</div><div class="dropdown">
-    <div class="item" data-act="about"><span>About ODM</span></div>
+  <div class="menu" data-menu="help"><div class="title" data-i18n="menu.help">Help</div><div class="dropdown">
+    <div class="item" data-act="about"><span data-i18n="m.about">About ODM</span></div>
   </div></div>
   <div class="spacer"></div>
   <div id="winctl" hidden>
-    <button data-win="min" title="Minimize"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></button>
-    <button data-win="max" title="Maximize / Restore"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7"/></svg></button>
-    <button data-win="close" class="close" title="Close window (ODM keeps running in the tray)"><svg viewBox="0 0 10 10"><path d="M1 1l8 8M9 1l-8 8"/></svg></button>
+    <button data-win="min" data-i18n-title="win.min" title="Minimize"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></button>
+    <button data-win="max" data-i18n-title="win.max" title="Maximize / Restore"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7"/></svg></button>
+    <button data-win="close" class="close" data-i18n-title="win.close" title="Close window (ODM keeps running in the tray)"><svg viewBox="0 0 10 10"><path d="M1 1l8 8M9 1l-8 8"/></svg></button>
   </div>
 </div>
 
 <div id="toolbar">
-  <button class="tb primary" data-act="add" title="Add download (Ctrl+N)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+  <button class="tb primary" data-act="add" data-i18n-title="tb.addTitle" title="Add download (Ctrl+N)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="tb.add">Add</span></button>
   <div class="vsep"></div>
-  <button class="tb" data-act="resume" id="tb-resume" title="Resume"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>Resume</button>
-  <button class="tb" data-act="pause" id="tb-pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>Pause</button>
-  <button class="tb" data-act="remove" id="tb-remove" title="Remove (Del)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Remove</button>
-  <input id="search" type="search" placeholder="Filter downloads…">
+  <button class="tb" data-act="resume" id="tb-resume" data-i18n-title="m.resume" title="Resume"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg><span data-i18n="m.resume">Resume</span></button>
+  <button class="tb" data-act="pause" id="tb-pause" data-i18n-title="m.pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg><span data-i18n="m.pause">Pause</span></button>
+  <button class="tb" data-act="remove" id="tb-remove" data-i18n-title="tb.removeTitle" title="Remove (Del)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg><span data-i18n="m.remove">Remove</span></button>
+  <input id="search" type="search" data-i18n-ph="search.ph" placeholder="Filter downloads…">
 </div>
 
 <div id="work">
   <div id="sidebar">
-    <div class="sec">Downloads</div>
-    <div class="nav active" data-filter="all"><span class="dot"></span>All<span class="count" id="c-all">0</span></div>
-    <div class="nav" data-filter="active"><span class="dot" style="background:var(--ok)"></span>Downloading<span class="count" id="c-active">0</span></div>
-    <div class="nav" data-filter="queued"><span class="dot"></span>Queued<span class="count" id="c-queued">0</span></div>
-    <div class="nav" data-filter="paused"><span class="dot" style="background:var(--warn)"></span>Paused<span class="count" id="c-paused">0</span></div>
-    <div class="nav" data-filter="completed"><span class="dot" style="background:var(--status)"></span>Completed<span class="count" id="c-completed">0</span></div>
-    <div class="nav" data-filter="failed"><span class="dot" style="background:var(--bad)"></span>Failed<span class="count" id="c-failed">0</span></div>
-    <div class="sec">Protocols</div>
-    <div class="nav" data-filter="proto:http"><span class="dot"></span>HTTP / HTTPS<span class="count" id="c-http">0</span></div>
-    <div class="nav" data-filter="proto:ftp"><span class="dot"></span>FTP / FTPS<span class="count" id="c-ftp">0</span></div>
+    <div class="sec" data-i18n="side.downloads">Downloads</div>
+    <div class="nav active" data-filter="all"><svg class="ic" viewBox="0 0 24 24" style="color:var(--muted)"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span data-i18n="side.all">All</span><span class="count" id="c-all">0</span></div>
+    <div class="nav" data-filter="active"><svg class="ic" viewBox="0 0 24 24" style="color:var(--ok)"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span data-i18n="status.active">Downloading</span><span class="count" id="c-active">0</span></div>
+    <div class="nav" data-filter="queued"><svg class="ic" viewBox="0 0 24 24" style="color:var(--muted)"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg><span data-i18n="status.queued">Queued</span><span class="count" id="c-queued">0</span></div>
+    <div class="nav" data-filter="paused"><svg class="ic" viewBox="0 0 24 24" style="color:var(--warn)"><path d="M9 6v12M15 6v12"/></svg><span data-i18n="status.paused">Paused</span><span class="count" id="c-paused">0</span></div>
+    <div class="nav" data-filter="completed"><svg class="ic" viewBox="0 0 24 24" style="color:var(--status)"><path d="M5 12.5l4.5 4.5L19 7"/></svg><span data-i18n="status.completed">Completed</span><span class="count" id="c-completed">0</span></div>
+    <div class="nav" data-filter="failed"><svg class="ic" viewBox="0 0 24 24" style="color:var(--bad)"><circle cx="12" cy="12" r="8"/><path d="M9 9l6 6M15 9l-6 6"/></svg><span data-i18n="status.failed">Failed</span><span class="count" id="c-failed">0</span></div>
+    <div class="sec" data-i18n="side.protocols">Protocols</div>
+    <div class="nav" data-filter="proto:http"><svg class="ic" viewBox="0 0 24 24" style="color:var(--muted)"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/></svg><span>HTTP / HTTPS</span><span class="count" id="c-http">0</span></div>
+    <div class="nav" data-filter="proto:ftp"><svg class="ic" viewBox="0 0 24 24" style="color:var(--muted)"><rect x="4" y="5" width="16" height="6" rx="1.5"/><rect x="4" y="13" width="16" height="6" rx="1.5"/><path d="M8 8h.01M8 16h.01"/></svg><span>FTP / FTPS</span><span class="count" id="c-ftp">0</span></div>
   </div>
-  <div class="split-v" id="split-side" title="Drag to resize"></div>
+  <div class="split-v" id="split-side" data-i18n-title="split.title" title="Drag to resize"></div>
   <div id="center">
     <div id="tablewrap" tabindex="0">
       <table id="tbl">
         <colgroup><col style="width:34%"><col style="width:11%"><col style="width:17%"><col style="width:11%"><col style="width:11%"><col style="width:8%"><col style="width:8%"></colgroup>
         <thead><tr>
-          <th data-sort="name">Name</th><th data-sort="size">Size</th><th data-sort="pct">Progress</th><th data-sort="status">Status</th>
-          <th data-sort="speed">Speed</th><th data-sort="eta">ETA</th><th data-sort="added">Added</th>
+          <th data-sort="name"><span data-i18n="col.name">Name</span></th><th data-sort="size"><span data-i18n="col.size">Size</span></th><th data-sort="pct"><span data-i18n="col.progress">Progress</span></th><th data-sort="status"><span data-i18n="col.status">Status</span></th>
+          <th data-sort="speed"><span data-i18n="col.speed">Speed</span></th><th data-sort="eta"><span data-i18n="col.eta">ETA</span></th><th data-sort="added"><span data-i18n="col.added">Added</span></th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
-      <div id="empty" hidden><b>No downloads</b>Press Ctrl+N or click Add to start one.</div>
+      <div id="empty" hidden><b data-i18n="empty.title">No downloads</b><span data-i18n="empty.hint">Press Ctrl+N or click Add to start one.</span></div>
     </div>
-    <div class="split-h" id="split-det" title="Drag to resize"></div>
+    <div class="split-h" id="split-det" data-i18n-title="split.title" title="Drag to resize"></div>
     <div id="details">
-      <div class="tabs"><div class="tab" data-tab="general">General</div><div class="tab" data-tab="conns">Connections</div></div>
+      <div class="tabs"><div class="tab" data-tab="general" data-i18n="tab.general">General</div><div class="tab" data-tab="conns" data-i18n="tab.conns">Connections</div></div>
       <div id="detbody"></div>
       <div id="detconn" hidden></div>
     </div>
@@ -267,20 +274,20 @@
 </div>
 
 <div id="statusbar">
-  <div class="conn" id="s-conn">Connecting…</div>
+  <div class="conn" id="s-conn" data-i18n="st.connecting">Connecting…</div>
   <div id="s-dir" class="grow"></div>
   <div id="s-count"></div>
   <div id="s-speed">Down: 0 B/s</div>
 </div>
 
 <div id="ctx"><div class="dropdown">
-  <div class="item" data-act="resume"><span>Resume</span></div>
-  <div class="item" data-act="pause"><span>Pause</span></div>
+  <div class="item" data-act="resume"><span data-i18n="m.resume">Resume</span></div>
+  <div class="item" data-act="pause"><span data-i18n="m.pause">Pause</span></div>
   <div class="sep"></div>
-  <div class="item" data-act="reveal" data-needs="reveal"><span>Show in Folder</span></div>
-  <div class="item" data-act="copyUrl"><span>Copy URL</span></div>
+  <div class="item" data-act="reveal" data-needs="reveal"><span data-i18n="m.reveal">Show in Folder</span></div>
+  <div class="item" data-act="copyUrl"><span data-i18n="m.copyUrl">Copy URL</span></div>
   <div class="sep"></div>
-  <div class="item" data-act="remove"><span>Remove…</span><span class="key">Del</span></div>
+  <div class="item" data-act="remove"><span data-i18n="m.removeDots">Remove…</span><span class="key">Del</span></div>
 </div></div>
 
 <div id="dlg" hidden></div>
@@ -292,6 +299,25 @@ const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const store = { get:k => { try { return localStorage.getItem(k); } catch { return null; } },
                 set:(k,v) => { try { localStorage.setItem(k,v); } catch {} } };
+
+/* ---------- i18n ---------- */
+// Strings live in i18n.js. Default: saved choice, else the browser/OS language.
+let lang = store.get("odm.lang") || (navigator.language || "en").slice(0, 2).toLowerCase();
+if (!I18N[lang]) lang = "en";
+const t = (k, v = {}) => String(I18N[lang][k] ?? I18N.en[k] ?? k).replace(/\{(\w+)\}/g, (_, n) => v[n] ?? "");
+function applyI18n() {
+  document.documentElement.lang = lang; // also makes text-transform:uppercase turn i into İ in Turkish
+  $$("[data-i18n]").forEach(el => { el.innerHTML = t(el.dataset.i18n); });
+  $$("[data-i18n-title]").forEach(el => { el.title = t(el.dataset.i18nTitle); });
+  $$("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  $$(".item.lang").forEach(el => el.classList.toggle("on", el.dataset.lang === lang));
+}
+function setLang(l) {
+  if (!I18N[l]) return;
+  lang = l; store.set("odm.lang", l);
+  applyI18n(); setConn(); render();
+  if (info) $("s-dir").textContent = dirLabel();
+}
 
 /* ---------- auth / api ---------- */
 // The desktop app opens us as /#token=...; move it out of the URL.
@@ -329,8 +355,8 @@ const fmtEta = s => {
 const fmtDate = ms => {
   const d = new Date(ms), now = new Date();
   return d.toDateString() === now.toDateString()
-    ? d.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" })
-    : d.toLocaleDateString([], { day:"2-digit", month:"short" });
+    ? d.toLocaleTimeString(lang, { hour:"2-digit", minute:"2-digit" })
+    : d.toLocaleDateString(lang, { day:"2-digit", month:"short" });
 };
 const proto = d => /^ftps?:/i.test(d.request.url) ? "ftp" : "http";
 const pct = d => d.size > 0 ? Math.min(100, d.downloaded * 100 / d.size) : (d.status === "completed" ? 100 : 0);
@@ -378,7 +404,7 @@ function render() {
       <td title="${esc(d.request.url)}">${esc(nameOf(d))}</td>
       <td class="num">${d.size > 0 ? fmtBytes(d.size) : "—"}</td>
       <td><div class="progcell"><i style="width:${p}%"></i><span>${p.toFixed(1)}%</span></div></td>
-      <td class="st-${d.status}">${cap(d.status)}</td>
+      <td class="st-${d.status}">${t("status." + d.status)}</td>
       <td class="num">${d.status === "active" ? fmtBytes(bps(d)) + "/s" : ""}</td>
       <td class="num">${fmtEta(eta(d))}</td>
       <td class="num">${fmtDate(Date.parse(d.createdAt))}</td></tr>`;
@@ -394,8 +420,8 @@ function render() {
   for (const k in cnt) $("c-" + k).textContent = cnt[k];
   // status bar
   const total = items.reduce((a, d) => a + bps(d), 0);
-  $("s-speed").textContent = "Down: " + fmtBytes(total) + "/s";
-  $("s-count").textContent = cnt.active + " active · " + cnt.completed + " completed · " + items.length + " total";
+  $("s-speed").textContent = t("st.down", { speed:fmtBytes(total) });
+  $("s-count").textContent = t("st.count", { active:cnt.active, completed:cnt.completed, total:items.length });
   // toolbar state
   const sel = items.filter(d => selected.has(d.id));
   $("tb-pause").disabled = !sel.some(d => d.status === "active" || d.status === "queued");
@@ -407,17 +433,17 @@ function render() {
 function renderDetails(sel) {
   $("detbody").hidden = detTab !== "general";
   $("detconn").hidden = detTab !== "conns";
-  $$("#details .tab").forEach(t => t.classList.toggle("active", t.dataset.tab === detTab));
+  $$("#details .tab").forEach(tab => tab.classList.toggle("active", tab.dataset.tab === detTab));
   if (detTab === "conns") return renderConns(sel);
   const d = sel.length === 1 ? sel[0] : null;
-  if (!d) { $("detbody").innerHTML = `<div class="k" style="grid-column:1/-1">${sel.length ? sel.length + " downloads selected" : "Select a download to see its details."}</div>`; return; }
+  if (!d) { $("detbody").innerHTML = `<div class="k" style="grid-column:1/-1">${sel.length ? t("det.multi", { n:sel.length }) : t("det.none")}</div>`; return; }
   const rows = [
-    ["Name", nameOf(d)], ["URL", d.request.url], ["Save to", d.path || d.dir || (info ? info.defaultDir : "")],
-    ["Size", d.size > 0 ? fmtBytes(d.size) + " (" + d.size.toLocaleString() + " bytes)" : "Unknown"],
-    ["Downloaded", fmtBytes(d.downloaded)], ["Status", cap(d.status)], ["Added", new Date(d.createdAt).toLocaleString()],
+    [t("det.name"), nameOf(d)], [t("det.url"), d.request.url], [t("det.saveTo"), d.path || d.dir || (info ? info.defaultDir : "")],
+    [t("det.size"), d.size > 0 ? fmtBytes(d.size) + " (" + t("det.bytes", { n:d.size.toLocaleString(lang) }) + ")" : t("det.unknown")],
+    [t("det.downloaded"), fmtBytes(d.downloaded)], [t("det.status"), t("status." + d.status)], [t("det.added"), new Date(d.createdAt).toLocaleString(lang)],
   ];
-  if (d.request.referer) rows.push(["Referer", d.request.referer]);
-  if (d.error) rows.push(["Error", d.error]);
+  if (d.request.referer) rows.push([t("det.referer"), d.request.referer]);
+  if (d.error) rows.push([t("det.error"), d.error]);
   $("detbody").innerHTML = rows.map(([k, v]) => `<div class="k">${k}</div><div class="v">${esc(v)}</div>`).join("");
 }
 
@@ -450,39 +476,38 @@ async function fetchConns() {
   finally { connsBusy = false; }
   renderConns(selItems());
 }
-const CONN_LABEL = { waiting:"Waiting", connecting:"Connecting", active:"Receiving", retrying:"Retrying", done:"Done", stopped:"Stopped", failed:"Failed" };
 function renderConns(sel) {
   const box = $("detconn");
-  if (sel.length !== 1) { box.innerHTML = `<div class="cempty">${sel.length ? sel.length + " downloads selected." : "Select a download to see its connections."}</div>`; return; }
+  if (sel.length !== 1) { box.innerHTML = `<div class="cempty">${sel.length ? t("conn.multi", { n:sel.length }) : t("conn.none")}</div>`; return; }
   const d = sel[0];
-  if (connsFor !== d.id || !conns) { if (connsFor !== d.id) box.innerHTML = `<div class="cempty">Loading…</div>`; fetchConns(); return; }
+  if (connsFor !== d.id || !conns) { if (connsFor !== d.id) box.innerHTML = `<div class="cempty">${t("conn.loading")}</div>`; fetchConns(); return; }
   if (conns.error) { box.innerHTML = `<div class="cempty">${esc(conns.error)}</div>`; return; }
   const list = conns.connections;
-  if (!list.length) { box.innerHTML = `<div class="cempty">${d.status === "queued" ? "Waiting in the queue; connections open when it starts." : "No connection data yet."}</div>`; return; }
+  if (!list.length) { box.innerHTML = `<div class="cempty">${d.status === "queued" ? t("conn.queued") : t("conn.nodata")}</div>`; return; }
   const size = conns.size > 0 ? conns.size : 0;
   const len = cn => cn.end >= 0 ? cn.end - cn.start : 0;
   const frac = cn => len(cn) > 0 ? Math.min(1, cn.done / len(cn)) : (cn.state === "done" ? 1 : 0);
   const active = list.filter(cn => cn.state === "active").length;
   const total = list.reduce((a, cn) => a + ((connSpeed.get(cn.index) || {}).bps || 0), 0);
-  const sum = `<div class="csum"><span><b>${list.length}</b> connection${list.length > 1 ? "s" : ""}</span>
-    <span><b>${conns.live ? active : 0}</b> receiving now</span>
-    ${conns.live ? `<span>Combined <b>${fmtBytes(total)}/s</b></span>` : `<span>${cap(d.status)}</span>`}
-    <span>Server ${conns.acceptRanges ? "supports" : "<b>does not support</b>"} ranged requests${conns.acceptRanges ? "" : " (single connection)"}</span></div>`;
-  const map = size ? `<div class="cmap" title="Where in the file each connection writes">${list.map(cn => {
+  const sum = `<div class="csum"><span>${list.length === 1 ? t("conn.count1") : t("conn.countN", { n:list.length })}</span>
+    <span>${t("conn.receiving", { n:conns.live ? active : 0 })}</span>
+    ${conns.live ? `<span>${t("conn.combined", { speed:fmtBytes(total) })}</span>` : `<span>${t("status." + d.status)}</span>`}
+    <span>${conns.acceptRanges ? t("conn.rangesYes") : t("conn.rangesNo")}</span></div>`;
+  const map = size ? `<div class="cmap" title="${t("conn.map")}">${list.map(cn => {
       const st = conns.live ? cn.state : (cn.state === "done" ? "done" : "stopped");
       return `<div class="seg ${st}" style="left:${cn.start / size * 100}%;width:${len(cn) / size * 100}%"><i style="width:${frac(cn) * 100}%"></i><span>${cn.index + 1}</span></div>`;
     }).join("")}</div>` : "";
   const boxes = list.map(cn => {
     const st = cn.state, f = frac(cn), bps = (connSpeed.get(cn.index) || {}).bps || 0;
-    const range = cn.end >= 0 ? `${fmtBytes(cn.start)} – ${fmtBytes(cn.end)}` : `${fmtBytes(cn.start)} – end`;
+    const range = cn.end >= 0 ? `${fmtBytes(cn.start)} – ${fmtBytes(cn.end)}` : `${fmtBytes(cn.start)} – ${t("conn.end")}`;
     const left = len(cn) > 0 && st === "active" && bps > 0 ? fmtEta((len(cn) - cn.done) / bps) : "";
     return `<div class="cbox ${st}">
-      <div class="h"><span class="dot"></span>Connection ${cn.index + 1}<span class="s">${CONN_LABEL[st] || esc(st)}</span></div>
+      <div class="h"><span class="dot"></span>${t("conn.title", { n:cn.index + 1 })}<span class="s">${I18N.en["cs." + st] ? t("cs." + st) : esc(st)}</span></div>
       <div class="bar"><i style="width:${(f * 100).toFixed(1)}%"></i></div>
-      <div class="r"><span>Range</span><b>${range}</b></div>
-      <div class="r"><span>Received</span><b>${fmtBytes(cn.done)}${len(cn) > 0 ? ` / ${fmtBytes(len(cn))} (${(f * 100).toFixed(1)}%)` : ""}</b></div>
-      <div class="r"><span>Speed</span><b>${st === "active" ? fmtBytes(bps) + "/s" + (left ? " · " + left : "") : "—"}</b></div>
-      ${cn.retries ? `<div class="r"><span>Retries</span><b>${cn.retries}</b></div>` : ""}
+      <div class="r"><span>${t("conn.range")}</span><b>${range}</b></div>
+      <div class="r"><span>${t("conn.received")}</span><b>${fmtBytes(cn.done)}${len(cn) > 0 ? ` / ${fmtBytes(len(cn))} (${(f * 100).toFixed(1)}%)` : ""}</b></div>
+      <div class="r"><span>${t("conn.speed")}</span><b>${st === "active" ? fmtBytes(bps) + "/s" + (left ? " · " + left : "") : "—"}</b></div>
+      ${cn.retries ? `<div class="r"><span>${t("conn.retries")}</span><b>${cn.retries}</b></div>` : ""}
       ${cn.error && st !== "done" ? `<div class="e">${esc(cn.error)}</div>` : ""}
     </div>`;
   }).join("");
@@ -504,7 +529,7 @@ async function refresh() {
 }
 function setConn() {
   const c = $("s-conn");
-  c.textContent = online ? "● Connected" : "● Disconnected";
+  c.textContent = online ? t("st.connected") : t("st.disconnected");
   c.classList.toggle("bad", !online);
 }
 
@@ -517,7 +542,7 @@ const applyInfo = () => {
   $$("[data-needs=integrate]").forEach(el => { el.hidden = !(info && info.canIntegrate); });
 };
 const toast = msg => { $("s-dir").textContent = msg; setTimeout(() => { $("s-dir").textContent = dirLabel(); }, 4000); };
-const dirLabel = () => info ? "Saving to " + info.defaultDir : "";
+const dirLabel = () => info ? t("st.saving", { dir:info.defaultDir }) : "";
 
 const actions = {
   add: () => addDialog(),
@@ -532,7 +557,7 @@ const actions = {
   resumeAll: () => each(items.filter(d => d.status === "paused"), d => api(`/downloads/${d.id}/resume`, { method:"POST" })),
   clearDone: () => each(items.filter(d => d.status === "completed"), d => api(`/downloads/${d.id}`, { method:"DELETE" })),
   selectAll: () => { visible().forEach(d => selected.add(d.id)); render(); },
-  copyUrl: () => { const t = selItems().map(d => d.request.url).join("\n"); if (t) navigator.clipboard.writeText(t).catch(() => {}); },
+  copyUrl: () => { const urls = selItems().map(d => d.request.url).join("\n"); if (urls) navigator.clipboard.writeText(urls).catch(() => {}); },
   toggleSidebar: () => setPane("sidebar", $("sidebar").hidden),
   toggleDetails: () => setPane("details", $("details").hidden),
   toggleStatus: () => setPane("statusbar", $("statusbar").hidden),
@@ -540,6 +565,7 @@ const actions = {
   signout: () => promptToken(true),
   about: () => aboutDialog(),
   integrations: () => integrationsDialog(),
+  lang: el => setLang(el.dataset.lang),
   resetLayout: () => {
     for (const k of ["odm.size.sidebar", "odm.size.details", "odm.cols"]) store.set(k, "");
     $("sidebar").style.width = ""; $("details").style.height = "";
@@ -554,7 +580,7 @@ function syncChecks() {
   $("m-details").classList.toggle("on", !$("details").hidden);
   $("m-status").classList.toggle("on", !$("statusbar").hidden);
 }
-function setTheme(t) { document.documentElement.dataset.theme = t; store.set("odm.theme", t); }
+function setTheme(th) { document.documentElement.dataset.theme = th; store.set("odm.theme", th); }
 
 /* ---------- dialogs ---------- */
 // Every dialog can be dismissed with the X button, Esc or a click outside, and
@@ -563,7 +589,7 @@ function dialog(title, bodyHtml, buttons, onClose) {
   const el = $("dlg");
   el.hidden = false;
   el.innerHTML = `<div class="overlay"><div class="dialog" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-    <h2><span>${esc(title)}</span><button class="x" aria-label="Close" title="Close (Esc)">✕</button></h2><div class="body">${bodyHtml}</div>
+    <h2><span>${esc(title)}</span><button class="x" aria-label="${t("btn.close")}" title="${t("dlg.close")}">✕</button></h2><div class="body">${bodyHtml}</div>
     <div class="foot">${buttons.map((b, i) => `<button class="btn${b.primary ? " primary" : ""}" data-i="${i}">${esc(b.label)}</button>`).join("")}</div></div></div>`;
   const close = () => { el.hidden = true; el.innerHTML = ""; el.onkeydown = null; };
   const dismiss = () => { close(); if (onClose) onClose(); };
@@ -590,45 +616,63 @@ function dialog(title, bodyHtml, buttons, onClose) {
   return close;
 }
 function addDialog() {
-  dialog("Add Download", `
-    <label>URLs (one per line — http, https, ftp, ftps)<textarea id="d-urls" placeholder="https://example.com/file.iso"></textarea></label>
-    <label>File name (optional, single URL only)<input id="d-name"></label>
+  const recent = (() => { try { return JSON.parse(store.get("odm.recentDirs") || "[]"); } catch { return []; } })();
+  dialog(t("add.title"), `
+    <label>${t("add.urls")}<textarea id="d-urls" placeholder="https://example.com/file.iso"></textarea></label>
+    <label>${t("add.name")}<input id="d-name"></label>
+    <label>${t("add.dir")}<span class="dirrow"><input id="d-dir" list="d-recent" placeholder="${esc(t("add.dirPh", { dir:info ? info.defaultDir : "" }))}">
+      ${info && info.canPickFolder ? `<button type="button" class="btn" id="d-browse">${t("add.browse")}</button>` : ""}</span>
+      <datalist id="d-recent">${recent.map(d => `<option value="${esc(d)}">`).join("")}</datalist></label>
+    <label class="chk"><input type="checkbox" id="d-paused"> ${t("add.paused")}</label>
     <div class="err" id="d-err"></div>`, [
-    { label:"Cancel" },
-    { label:"Download", primary:true, action: async el => {
+    { label:t("btn.cancel") },
+    { label:t("add.start"), primary:true, action: async el => {
       const urls = el.querySelector("#d-urls").value.split(/\s+/).filter(Boolean);
       const name = el.querySelector("#d-name").value.trim();
-      if (!urls.length) { el.querySelector("#d-err").textContent = "Enter at least one URL."; return false; }
+      const dir = el.querySelector("#d-dir").value.trim();
+      const paused = el.querySelector("#d-paused").checked;
+      if (!urls.length) { el.querySelector("#d-err").textContent = t("add.needUrl"); return false; }
       try {
-        for (const u of urls) await api("/downloads", { method:"POST", body:JSON.stringify({ request:{ url:u }, filename: urls.length === 1 ? name : "" }) });
+        for (const u of urls) await api("/downloads", { method:"POST", body:JSON.stringify({ request:{ url:u }, filename: urls.length === 1 ? name : "", dir, paused }) });
       } catch (e) { el.querySelector("#d-err").textContent = e.message; return false; }
+      if (dir) store.set("odm.recentDirs", JSON.stringify([dir, ...recent.filter(d => d !== dir)].slice(0, 8)));
       refresh();
     } }]);
   $("dlg").querySelector("#d-urls").addEventListener("keydown", e => { if (e.key === "Enter" && e.ctrlKey) $("dlg").querySelector(".btn.primary").click(); });
+  const browse = $("dlg").querySelector("#d-browse");
+  if (browse) browse.onclick = async () => {
+    const input = $("dlg").querySelector("#d-dir");
+    browse.disabled = true;
+    try {
+      const r = await api("/pickfolder", { method:"POST", body:JSON.stringify({ initial:input.value.trim() }) });
+      if (r && r.path) input.value = r.path;
+    } catch (e) { $("dlg").querySelector("#d-err").textContent = e.message; }
+    finally { browse.disabled = false; }
+  };
 }
 // Persistent 401 failures re-open the token prompt on every poll; once the user
 // dismisses it we stay quiet until they ask again via Tools > Change Server Token.
 let tokenPromptMuted = false;
 function confirmRemove(list) {
   if (!list.length) return;
-  const names = list.slice(0, 4).map(d => `<li>${esc(nameOf(d))}</li>`).join("") + (list.length > 4 ? `<li>…and ${list.length - 4} more</li>` : "");
-  dialog(list.length === 1 ? "Remove download" : `Remove ${list.length} downloads`,
-    `<div>Remove from the list?</div><ul class="names">${names}</ul>
-     <label class="chk"><input type="checkbox" id="r-file"> Also delete the downloaded file${list.length > 1 ? "s" : ""} from disk</label>`, [
-    { label:"Cancel" },
-    { label:"Remove", primary:true, action: async el => {
+  const names = list.slice(0, 4).map(d => `<li>${esc(nameOf(d))}</li>`).join("") + (list.length > 4 ? `<li>${t("rm.more", { n:list.length - 4 })}</li>` : "");
+  dialog(list.length === 1 ? t("rm.title1") : t("rm.titleN", { n:list.length }),
+    `<div>${t("rm.ask")}</div><ul class="names">${names}</ul>
+     <label class="chk"><input type="checkbox" id="r-file"> ${list.length > 1 ? t("rm.fileN") : t("rm.file1")}</label>`, [
+    { label:t("btn.cancel") },
+    { label:t("rm.ok"), primary:true, action: async el => {
       const del = el.querySelector("#r-file").checked;
       await each(list, d => api(`/downloads/${d.id}${del ? "?deleteFile=true" : ""}`, { method:"DELETE" }));
     } }]);
 }
 function aboutDialog() {
-  dialog("About ODM", `<div>Open Download Manager ${esc(info ? info.version : "")}</div><div style="color:var(--muted)">HTTP(S) / FTP(S) segmented downloads with a shared local & remote server.</div>`, [{ label:"OK", primary:true }]);
+  dialog(t("about.title"), `<div style="display:flex;gap:12px;align-items:center"><img src="icon.png" width="40" height="40" alt=""><div><div>Open Download Manager ${esc(info ? info.version : "")}</div><div style="color:var(--muted)">${t("about.desc")}</div></div></div>`, [{ label:t("btn.ok"), primary:true }]);
 }
 // Browser extensions ship inside odm.exe and are installed from here, so the
 // extension version always follows the program (no store auto-updates).
 const BROWSER_NAMES = { firefox:"Firefox", chrome:"Chrome", edge:"Edge" };
 async function integrationsDialog() {
-  dialog("Browser Extensions", `<div class="integ" id="i-list">Loading…</div><div class="err" id="i-err"></div>`, [{ label:"Close", primary:true }]);
+  dialog(t("int.title"), `<div class="integ" id="i-list">${t("conn.loading")}</div><div class="err" id="i-err"></div>`, [{ label:t("btn.close"), primary:true }]);
   const el = $("dlg");
   el.querySelector(".dialog").classList.add("wide");
   const err = el.querySelector("#i-err");
@@ -638,23 +682,23 @@ async function integrationsDialog() {
   box.innerHTML = list.map(it => {
     const name = BROWSER_NAMES[it.id] || it.id;
     let st, cls;
-    if (!it.bundled) { st = "Not included in this ODM build"; cls = "bad"; }
-    else if (!it.seen) { st = `Not detected yet (ODM bundles ${it.bundled}). If it is installed, open its ODM popup once.`; cls = ""; }
-    else if (it.seen.version === it.bundled) { st = `Installed ${it.seen.version} · up to date`; cls = "ok"; }
-    else { st = `Installed ${it.seen.version} · ODM bundles ${it.bundled}, update it`; cls = "warn"; }
-    if (it.seen) st += ` · last seen ${new Date(it.seen.at).toLocaleString()}`;
+    if (!it.bundled) { st = t("int.notBundled"); cls = "bad"; }
+    else if (!it.seen) { st = t("int.notSeen", { v:it.bundled }); cls = ""; }
+    else if (it.seen.version === it.bundled) { st = t("int.upToDate", { v:it.seen.version }); cls = "ok"; }
+    else { st = t("int.outdated", { v:it.seen.version, b:it.bundled }); cls = "warn"; }
+    if (it.seen) st += " · " + t("int.lastSeen", { t:new Date(it.seen.at).toLocaleString(lang) });
     const off = !it.installed || !it.bundled ? " disabled" : "";
-    const missing = it.installed ? "" : `<div class="st bad">${esc(name)} was not found on this computer.</div>`;
+    const missing = it.installed ? "" : `<div class="st bad">${t("int.notFound", { name:esc(name) })}</div>`;
     const acts = it.id === "firefox"
-      ? `<button class="btn primary" data-i-act="install" data-id="firefox"${off}>Install in Firefox</button>`
-      : `<button class="btn primary" data-i-act="install" data-id="${esc(it.id)}"${off}>Open ${esc(name)} Extensions Page</button>
-         <button class="btn" data-i-act="folder" data-id="${esc(it.id)}"${it.bundled ? "" : " disabled"}>Open Folder</button>
-         <button class="btn" data-i-act="copy" data-path="${esc(it.folder || "")}">Copy Path</button>`;
+      ? `<button class="btn primary" data-i-act="install" data-id="firefox"${off}>${t("int.installFF")}</button>`
+      : `<button class="btn primary" data-i-act="install" data-id="${esc(it.id)}"${off}>${t("int.openPage", { name:esc(name) })}</button>
+         <button class="btn" data-i-act="folder" data-id="${esc(it.id)}"${it.bundled ? "" : " disabled"}>${t("int.openFolder")}</button>
+         <button class="btn" data-i-act="copy" data-path="${esc(it.folder || "")}">${t("int.copyPath")}</button>`;
     const steps = it.id === "firefox"
-      ? `<ol><li>Remove any temporary ODM add-on in about:debugging first.</li><li>Firefox asks "Add ODM?": click Add.</li></ol>`
-      : `<ol><li>If the extensions page does not open, type <b>${it.id === "edge" ? "edge" : "chrome"}://extensions</b> in the address bar.</li>
-         <li>Turn on <b>Developer mode</b> on the extensions page.</li><li>Click <b>Load unpacked</b> and pick the folder below (once).</li>
-         <li>When ODM updates, the folder is refreshed; restart ${esc(name)} or press the extension's reload button.</li></ol>
+      ? `<ol><li>${t("int.ff1")}</li><li>${t("int.ff2")}</li></ol>`
+      : `<ol><li>${t("int.ch0", { url:(it.id === "edge" ? "edge" : "chrome") + "://extensions" })}</li>
+         <li>${t("int.ch1")}</li><li>${t("int.ch2")}</li>
+         <li>${t("int.ch3", { name:esc(name) })}</li></ol>
          <div class="path">${esc(it.folder || "")}</div>`;
     return `<div class="row"><div class="head"><b>${esc(name)}</b><span class="st ${cls}">${esc(st)}</span></div>${missing}${steps}<div class="acts">${acts}</div></div>`;
   }).join("");
@@ -662,22 +706,22 @@ async function integrationsDialog() {
     const b = e.target.closest("button[data-i-act]"); if (!b || b.disabled) return;
     err.textContent = "";
     try {
-      if (b.dataset.iAct === "copy") { await navigator.clipboard.writeText(b.dataset.path); toast("Path copied"); return; }
+      if (b.dataset.iAct === "copy") { await navigator.clipboard.writeText(b.dataset.path); toast(t("int.copied")); return; }
       await api(`/integrations/${b.dataset.id}/${b.dataset.iAct}`, { method:"POST" });
-      if (b.dataset.iAct === "install") toast(b.dataset.id === "firefox" ? "Firefox opened the install prompt" : "Opened the extensions page and the folder");
+      if (b.dataset.iAct === "install") toast(b.dataset.id === "firefox" ? t("int.ffOpened") : t("int.pageOpened"));
     } catch (ex) { err.textContent = ex.message; }
   };
 }
 function promptToken(manual) {
   if (manual) tokenPromptMuted = false;
   if (tokenPromptMuted || !$("dlg").hidden) return;
-  dialog("Connect to ODM", `<label>API token<input id="t-tok" type="password" autocomplete="current-password"></label><div class="err" id="t-err"></div>`, [
-    { label:"Cancel" },
-    { label:"Connect", primary:true, action: async el => {
-      const t = el.querySelector("#t-tok").value.trim(); if (!t) return false;
-      const old = token; token = t;
-      try { info = await api("/info"); store.set("odm.token", t); }
-      catch { token = old; el.querySelector("#t-err").textContent = "Invalid token."; return false; }
+  dialog(t("tok.title"), `<label>${t("tok.label")}<input id="t-tok" type="password" autocomplete="current-password"></label><div class="err" id="t-err"></div>`, [
+    { label:t("btn.cancel") },
+    { label:t("tok.connect"), primary:true, action: async el => {
+      const tok = el.querySelector("#t-tok").value.trim(); if (!tok) return false;
+      const old = token; token = tok;
+      try { info = await api("/info"); store.set("odm.token", tok); }
+      catch { token = old; el.querySelector("#t-err").textContent = t("tok.invalid"); return false; }
       $("s-dir").textContent = dirLabel(); applyInfo(); refresh();
     } }], () => { tokenPromptMuted = true; });
 }
@@ -693,7 +737,7 @@ $$(".menu").forEach(menu => {
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]");
   closeMenus(); hideCtx();
-  if (el && !el.disabled && actions[el.dataset.act]) actions[el.dataset.act]();
+  if (el && !el.disabled && actions[el.dataset.act]) actions[el.dataset.act](el);
 });
 // sidebar filters
 $$(".nav").forEach(n => n.onclick = () => { $$(".nav").forEach(x => x.classList.remove("active")); n.classList.add("active"); filter = n.dataset.filter; render(); });
@@ -781,7 +825,7 @@ function applyCols() {
   $("tbl").style.width = colPx.reduce((a, b) => a + b, 0) + "px";
 }
 $$("#tbl th").forEach((th, i) => {
-  const rz = document.createElement("span"); rz.className = "rz"; rz.title = "Drag to resize, double-click to reset all";
+  const rz = document.createElement("span"); rz.className = "rz"; rz.dataset.i18nTitle = "rz.title"; rz.title = t("rz.title");
   th.appendChild(rz);
   dragger(rz, "col-resize",
     e => { if (!colPx) { colPx = $$("#tbl th").map(h => h.offsetWidth); applyCols(); } return { x:e.clientX, w:colPx[i] }; },
@@ -791,7 +835,7 @@ $$("#tbl th").forEach((th, i) => {
   rz.addEventListener("dblclick", e => { e.stopPropagation(); colPx = null; store.set("odm.cols", ""); applyCols(); });
 });
 // details tabs
-$$("#details .tab").forEach(t => t.onclick = () => { detTab = t.dataset.tab; store.set("odm.dettab", detTab); render(); });
+$$("#details .tab").forEach(tab => tab.onclick = () => { detTab = tab.dataset.tab; store.set("odm.dettab", detTab); render(); });
 
 /* ---------- desktop app window (frameless) ---------- */
 // window.odmWin only exists inside the tray app's WebView2 window; in a normal
@@ -807,6 +851,7 @@ if (typeof window.odmWin === "function") {
 /* ---------- boot ---------- */
 async function start() {
   setTheme(store.get("odm.theme") || "dark");
+  applyI18n();
   for (const id of ["sidebar", "details", "statusbar"]) if (store.get("odm.pane." + id) === "0") $(id).hidden = true;
   const sw = +store.get("odm.size.sidebar"), dh = +store.get("odm.size.details");
   if (sw) $("sidebar").style.width = clamp(sw, 140, innerWidth * .5) + "px";

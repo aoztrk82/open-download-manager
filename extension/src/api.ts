@@ -1,40 +1,14 @@
 // Shared code for the ODM browser extension: API client, settings, launching the
 // local app, and status reporting. Same HTTP protocol the Go CLI and Web UI use.
+import { ext } from "./ext";
+import { setLang, t } from "./i18n";
 
-// Firefox exposes a promise-based `browser` namespace; its `chrome` namespace is
-// callback-based there, so `await chrome.storage.local.get()` can yield undefined.
-// Chrome has no `browser`, and its `chrome.*` calls return promises in MV3.
-export const ext: typeof chrome =
-  (globalThis as unknown as { browser?: typeof chrome }).browser ?? chrome;
+export { ext };
 
 export const LOCAL_URL = "http://127.0.0.1:6800";
-
-/** Which browser family this build runs in; Edge uses the Chrome build. */
-export function browserId(): "firefox" | "chrome" | "edge" {
-  if (ext.runtime.getURL("").startsWith("moz-extension:")) return "firefox";
-  return / Edg\//.test(navigator.userAgent) ? "edge" : "chrome";
-}
-export const extVersion = () => ext.runtime.getManifest().version;
-
-export interface Info {
-  version: string;
-  defaultDir: string;
-  /** Extension versions bundled in odm.exe by family; missing on older daemons. */
-  extensions?: Record<string, string>;
-}
-
-/**
- * The extension is installed from odm.exe (ODM > Integrations), so its version
- * should match the one ODM bundles. Returns a warning when it does not.
- */
-export function versionWarning(info: Info): string {
-  const fam = browserId() === "firefox" ? "firefox" : "chrome";
-  const bundled = info.extensions?.[fam];
-  if (!bundled || bundled === extVersion()) return "";
-  return `Extension ${extVersion()} does not match ODM ${info.version} (bundles ${bundled}). ` +
-    "Update it from ODM: Integrations > Browser Extensions.";
-}
 export const NATIVE_HOST = "odm_host"; // registered by odm.exe on its first run
+
+export type Target = "local" | "remote";
 
 export interface Settings {
   enabled: boolean;
@@ -42,6 +16,14 @@ export interface Settings {
   serverUrl: string;
   token: string;
   minSizeMB: number;
+  /** Show the download dialog (name, size, destination, folder) before each download. */
+  askBeforeDownload: boolean;
+  /** Where downloads go when the dialog is not shown. */
+  defaultTarget: Target;
+  /** "auto" (browser language), "en" or "tr". */
+  language: string;
+  /** Recently used folders per destination; server paths are not local paths. */
+  recentDirs: Record<Target, string[]>;
 }
 
 export const DEFAULTS: Settings = {
@@ -49,7 +31,18 @@ export const DEFAULTS: Settings = {
   serverUrl: "",
   token: "",
   minSizeMB: 0,
+  askBeforeDownload: true,
+  defaultTarget: "local",
+  language: "auto",
+  recentDirs: { local: [], remote: [] },
 };
+
+/** Which browser family this build runs in; Edge uses the Chrome build. */
+export function browserId(): "firefox" | "chrome" | "edge" {
+  if (ext.runtime.getURL("").startsWith("moz-extension:")) return "firefox";
+  return / Edg\//.test(navigator.userAgent) ? "edge" : "chrome";
+}
+export const extVersion = () => ext.runtime.getManifest().version;
 
 export interface Remote {
   url: string;
@@ -80,6 +73,14 @@ export interface DownloadRequest {
   userAgent?: string;
 }
 
+/** What the browser already told us about a captured download. */
+export interface Hints {
+  filename?: string;
+  size?: number; // bytes, 0/undefined = unknown
+  mime?: string;
+  resumable?: boolean;
+}
+
 export interface Download {
   id: string;
   request: DownloadRequest;
@@ -90,6 +91,39 @@ export interface Download {
   error?: string;
 }
 
+export interface Info {
+  version: string;
+  defaultDir: string;
+  canPickFolder?: boolean;
+  /** false: a server that only accepts folders inside defaultDir. */
+  anyFolder?: boolean;
+  /** Extension versions bundled in odm.exe by family; missing on older daemons. */
+  extensions?: Record<string, string>;
+}
+
+export interface Probe {
+  size: number; // -1 unknown
+  acceptRanges: boolean;
+  filename: string;
+}
+
+export interface AddOptions {
+  filename?: string;
+  dir?: string;
+  paused?: boolean;
+}
+
+/**
+ * The extension is installed from odm.exe (ODM > Integrations), so its version
+ * should match the one ODM bundles. Returns a warning when it does not.
+ */
+export function versionWarning(info: Info): string {
+  const fam = browserId() === "firefox" ? "firefox" : "chrome";
+  const bundled = info.extensions?.[fam];
+  if (!bundled || bundled === extVersion()) return "";
+  return t("ver.mismatch", { ext: extVersion(), odm: info.version, bundled });
+}
+
 export class OdmClient {
   private base: string;
 
@@ -97,13 +131,14 @@ export class OdmClient {
     this.base = base.replace(/\/+$/, "");
   }
 
-  private async call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private async call<T>(method: string, path: string, body?: unknown, timeoutMs = 30_000): Promise<T> {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (this.token) headers.Authorization = `Bearer ${this.token}`; // local daemon needs none
     const r = await fetch(this.base + "/v1" + path, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!r.ok) {
       const e = await r.json().catch(() => ({}));
@@ -114,11 +149,16 @@ export class OdmClient {
 
   // ?ext= lets ODM show which extension version each browser runs.
   info() {
-    return this.call<Info>("GET", `/info?ext=${encodeURIComponent(`${browserId()}/${extVersion()}`)}`);
+    return this.call<Info>("GET", `/info?ext=${encodeURIComponent(`${browserId()}/${extVersion()}`)}`, undefined, 5_000);
   }
   list() { return this.call<Download[]>("GET", "/downloads"); }
-  add(request: DownloadRequest, filename?: string) {
-    return this.call<Download>("POST", "/downloads", { request, filename });
+  add(request: DownloadRequest, o: AddOptions = {}) {
+    return this.call<Download>("POST", "/downloads", { request, filename: o.filename, dir: o.dir, paused: o.paused });
+  }
+  probe(request: DownloadRequest) { return this.call<Probe>("POST", "/probe", { request }, 15_000); }
+  /** Native folder chooser on the local daemon; "" when cancelled. Waits for the user. */
+  pickFolder(initial: string) {
+    return this.call<{ path: string }>("POST", "/pickfolder", { initial }, 10 * 60_000).then((r) => r.path);
   }
 }
 
@@ -143,12 +183,9 @@ export async function ensureLocal(): Promise<OdmClient> {
   try {
     reply = (await ext.runtime.sendNativeMessage(NATIVE_HOST, { cmd: "start" })) as typeof reply;
   } catch (e) {
-    throw new Error(
-      "ODM is not running and could not be started automatically. Start odm.exe once " +
-        `(it registers the browser integration), then try again. (${(e as Error).message})`,
-    );
+    throw new Error(t("err.notRunning", { err: (e as Error).message }));
   }
-  if (reply && reply.ok === false) throw new Error(`ODM could not be started: ${reply.error ?? "unknown error"}`);
+  if (reply && reply.ok === false) throw new Error(t("err.startFailed", { err: reply.error ?? "?" }));
   for (let i = 0; i < 40; i++) {
     await sleep(250);
     try {
@@ -158,20 +195,66 @@ export async function ensureLocal(): Promise<OdmClient> {
       /* still starting */
     }
   }
-  throw new Error("ODM was started but is not answering on " + LOCAL_URL);
+  throw new Error(t("err.noAnswer", { url: LOCAL_URL }));
+}
+
+/** Client for a destination; starts the local ODM when needed. */
+export async function clientFor(target: Target, s: Settings): Promise<OdmClient> {
+  const remote = remoteOf(s);
+  if (target === "remote" && remote) return new OdmClient(remote.url, remote.token);
+  return ensureLocal();
+}
+
+/** Human name of a destination for status messages. */
+export function targetName(target: Target, s: Settings): string {
+  const remote = remoteOf(s);
+  return target === "remote" && remote ? t("bg.remote", { host: remote.label }) : t("bg.local");
 }
 
 export async function loadSettings(): Promise<Settings> {
-  const s = await ext.storage.local.get({ ...DEFAULTS });
-  return s as Settings;
+  const s = (await ext.storage.local.get({ ...DEFAULTS })) as Settings;
+  s.recentDirs = { local: s.recentDirs?.local ?? [], remote: s.recentDirs?.remote ?? [] };
+  setLang(s.language);
+  return s;
 }
 
-/** Temporary hand-off data between the background script and the chooser window. */
+/** Remembers a folder at the top of the recent list for that destination. */
+export async function rememberDir(target: Target, dir: string) {
+  if (!dir) return;
+  const s = await loadSettings();
+  const list = [dir, ...s.recentDirs[target].filter((d) => d !== dir)].slice(0, 8);
+  await ext.storage.local.set({ recentDirs: { ...s.recentDirs, [target]: list } });
+}
+
+/** Temporary hand-off data between the background script and the dialog window. */
 export const scratch = ext.storage.session ?? ext.storage.local;
 
 export interface Pending {
   req: DownloadRequest;
+  hints: Hints;
   windowId?: number;
+}
+
+/** Best guess at a file name from a URL. */
+export function nameFromUrl(url: string): string {
+  try {
+    const last = new URL(url).pathname.split("/").filter(Boolean).pop();
+    return last ? decodeURIComponent(last) : new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
+export function human(n: number): string {
+  if (!(n > 0)) return "0 B";
+  if (n < 1024) return `${n} B`;
+  const u = "KMGTP";
+  let i = -1;
+  do {
+    n /= 1024;
+    i++;
+  } while (n >= 1024 && i < u.length - 1);
+  return `${n.toFixed(n >= 100 ? 0 : 1)} ${u[i]}iB`;
 }
 
 /**

@@ -1,18 +1,56 @@
 {
   "manifest_version": 3,
-  "name": "ODM - Open Download Manager",
+  "name": "__MSG_extName__",
   "version": "0.1.0",
-  "description": "Send browser downloads to your Open Download Manager (local or remote).",
-  "permissions": ["downloads", "storage", "cookies", "contextMenus", "nativeMessaging", "webRequest", "webRequestBlocking"],
-  "host_permissions": ["<all_urls>"],
-  "background": { "scripts": ["background.js"], "type": "module" },
-  "action": { "default_popup": "popup.html", "default_title": "ODM" },
-  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "downloads",
+    "storage",
+    "cookies",
+    "contextMenus",
+    "nativeMessaging",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ODM",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "odm@open-download-manager.local",
       "strict_min_version": "140.0",
-      "data_collection_permissions": { "required": ["none"] }
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
     }
   }
 }

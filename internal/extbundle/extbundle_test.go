@@ -42,7 +42,7 @@ func TestSyncChrome(t *testing.T) {
 	// Chrome rejects unpacked extensions with names starting with "_".
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
-		if e.Name()[0] == '_' {
+		if e.Name()[0] == '_' && e.Name() != "_locales" { // _locales is the one allowed name
 			t.Fatalf("reserved name in extension folder: %s", e.Name())
 		}
 	}

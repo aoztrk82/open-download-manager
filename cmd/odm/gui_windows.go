@@ -3,13 +3,8 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,12 +88,12 @@ func runTray(background bool) error {
 	systray.Run(func() {
 		systray.SetIcon(trayIcon())
 		systray.SetTooltip("ODM - Open Download Manager")
-		open := systray.AddMenuItem("Open ODM", "Show the download window")
-		folder := systray.AddMenuItem("Open downloads folder", "")
+		open := systray.AddMenuItem(trayText("open"), trayText("openTip"))
+		folder := systray.AddMenuItem(trayText("folder"), "")
 		systray.AddSeparator()
-		auto := systray.AddMenuItemCheckbox("Start with Windows", "", autostartEnabled())
+		auto := systray.AddMenuItemCheckbox(trayText("autostart"), "", autostartEnabled())
 		systray.AddSeparator()
-		quit := systray.AddMenuItem("Quit ODM", "Stop the daemon and exit")
+		quit := systray.AddMenuItem(trayText("quit"), trayText("quitTip"))
 
 		if !background {
 			_ = spawnSelf("window") // first launch shows the window
@@ -233,6 +228,7 @@ type rect struct{ Left, Top, Right, Bottom int32 }
 // exposes window.odmWin("min"|"max"|"close"|"drag") to the page.
 func makeFrameless(w webview2.WebView, user32 *windows.LazyDLL) {
 	hwnd := uintptr(w.Window())
+	setWindowIcon(hwnd, user32)
 	getLong, setLong := user32.NewProc("GetWindowLongPtrW"), user32.NewProc("SetWindowLongPtrW")
 	setPos, showWin := user32.NewProc("SetWindowPos"), user32.NewProc("ShowWindow")
 	getRect, getCursor := user32.NewProc("GetWindowRect"), user32.NewProc("GetCursorPos")
@@ -294,42 +290,4 @@ func makeFrameless(w webview2.WebView, user32 *windows.LazyDLL) {
 			sendMsg.Call(hwnd, wmNCLButtonDown, htCaption, 0)
 		}
 	})
-}
-
-// ---- icon ----
-
-// trayIcon renders a blue disc with a white down-arrow as a PNG-in-ICO blob.
-func trayIcon() []byte {
-	const n = 32
-	img := image.NewRGBA(image.Rect(0, 0, n, n))
-	blue, white := color.RGBA{37, 99, 235, 255}, color.RGBA{255, 255, 255, 255}
-	for y := 0; y < n; y++ {
-		for x := 0; x < n; x++ {
-			dx, dy := float64(x)-15.5, float64(y)-15.5
-			if dx*dx+dy*dy <= 15.5*15.5 {
-				img.Set(x, y, blue)
-			}
-		}
-	}
-	for y := 7; y < 17; y++ { // stem
-		for x := 14; x < 18; x++ {
-			img.Set(x, y, white)
-		}
-	}
-	for y := 16; y < 24; y++ { // arrow head
-		half := 24 - y
-		for x := 16 - half; x < 16+half; x++ {
-			img.Set(x, y, white)
-		}
-	}
-	var p bytes.Buffer
-	_ = png.Encode(&p, img)
-	var ico bytes.Buffer
-	_ = binary.Write(&ico, binary.LittleEndian, []uint16{0, 1, 1}) // ICONDIR
-	ico.Write([]byte{n, n, 0, 0})                                  // w, h, colors, reserved
-	_ = binary.Write(&ico, binary.LittleEndian, []uint16{1, 32})   // planes, bpp
-	_ = binary.Write(&ico, binary.LittleEndian, uint32(p.Len()))
-	_ = binary.Write(&ico, binary.LittleEndian, uint32(22)) // data offset
-	ico.Write(p.Bytes())
-	return ico.Bytes()
 }

@@ -21,7 +21,7 @@ import (
 	"github.com/aoztrk82/open-download-manager/internal/store"
 )
 
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 type Server struct {
 	Queue      *queue.Manager
@@ -37,6 +37,12 @@ type Server struct {
 	// Extensions are the extension versions bundled in this build, by browser
 	// family ("chrome", "firefox"); empty when not bundled.
 	Extensions map[string]string
+	// AnyDir lets clients pick any absolute download folder (local daemon).
+	// Otherwise folders must stay inside DefaultDir.
+	AnyDir bool
+	// PickFolder shows a native folder chooser and returns the choice ("" if
+	// cancelled). Local daemon only.
+	PickFolder func(initial string) (string, error)
 
 	seenMu sync.Mutex
 	seen   map[string]Seen
@@ -48,6 +54,8 @@ type Info struct {
 	DefaultDir   string            `json:"defaultDir"`
 	CanReveal    bool              `json:"canReveal"`
 	CanIntegrate bool              `json:"canIntegrate"`
+	CanPickDir   bool              `json:"canPickFolder"`
+	AnyDir       bool              `json:"anyFolder"` // false: folders must be inside defaultDir
 	Extensions   map[string]string `json:"extensions"`
 }
 
@@ -102,6 +110,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/info", s.info)
 	mux.HandleFunc("GET /v1/downloads", s.list)
 	mux.HandleFunc("POST /v1/downloads", s.add)
+	mux.HandleFunc("POST /v1/probe", s.probe)
+	mux.HandleFunc("POST /v1/pickfolder", s.pickFolder)
 	mux.HandleFunc("GET /v1/downloads/{id}", s.get)
 	mux.HandleFunc("GET /v1/downloads/{id}/connections", s.connections)
 	mux.HandleFunc("POST /v1/downloads/{id}/pause", s.act(s.Queue.Pause))
@@ -217,7 +227,8 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 		ext = map[string]string{}
 	}
 	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.DefaultDir,
-		CanReveal: s.Reveal != nil, CanIntegrate: s.Integrations != nil, Extensions: ext})
+		CanReveal: s.Reveal != nil, CanIntegrate: s.Integrations != nil, CanPickDir: s.PickFolder != nil,
+		AnyDir: s.AnyDir, Extensions: ext})
 }
 
 func (s *Server) integrations(w http.ResponseWriter, r *http.Request) {
@@ -301,6 +312,12 @@ func (s *Server) add(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "request.url is required")
 		return
 	}
+	dir, err := s.checkDir(req.Dir)
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	req.Dir = dir
 	d, err := s.Queue.Add(req)
 	if err != nil {
 		writeErr(w, 400, err.Error())

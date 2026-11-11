@@ -27,6 +27,8 @@ type AddRequest struct {
 	Request  proto.Request `json:"request"`
 	Dir      string        `json:"dir,omitempty"`
 	Filename string        `json:"filename,omitempty"`
+	// Paused adds it without starting (the download dialog's "Later").
+	Paused bool `json:"paused,omitempty"`
 }
 
 type Config struct {
@@ -108,8 +110,12 @@ func (m *Manager) Add(r AddRequest) (*store.Download, error) {
 	if dir == "" {
 		dir = m.cfg.DefaultDir
 	}
+	status := store.Queued
+	if r.Paused {
+		status = store.Paused
+	}
 	d := &store.Download{
-		ID: newID(), Req: r.Request, Dir: dir, Filename: r.Filename, Status: store.Queued,
+		ID: newID(), Req: r.Request, Dir: dir, Filename: r.Filename, Status: status,
 	}
 	if err := m.store.Save(d); err != nil {
 		return nil, err
@@ -120,6 +126,16 @@ func (m *Manager) Add(r AddRequest) (*store.Download, error) {
 }
 
 func (m *Manager) List() ([]*store.Download, error) { return m.store.List() }
+
+// Probe asks the source for size, range support and file name without
+// downloading, so the download dialog can show them before the user decides.
+func (m *Manager) Probe(ctx context.Context, req proto.Request) (proto.Info, error) {
+	src, err := m.engine.Sources.For(req.URL)
+	if err != nil {
+		return proto.Info{}, err
+	}
+	return src.Probe(ctx, req)
+}
 
 func (m *Manager) Get(id string) (*store.Download, error) { return m.store.Get(id) }
 

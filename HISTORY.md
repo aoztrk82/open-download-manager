@@ -2,6 +2,23 @@
 
 Newest first. Commit hashes refer to `git log`.
 
+## 2026-11-11 - fourth session (owner away; nothing was opened on screen)
+- Icons: one generator (`tools/genicons`) draws the logo (blue rounded square, down arrow over a 4-part bar =
+  parallel connections) for the extension (16-128), Web UI favicon/brand, tray `.ico` and the window/taskbar icon
+  (`cmd/odm/icon_windows.go`, `CreateIconFromResourceEx` + `WM_SETICON`). Sidebar dots became icons.
+  The exe file icon (Explorer) is not done: generating a `.syso` needs an external tool that was not allowed to run.
+- English + Turkish everywhere: Web UI (`i18n.js`, View menu), extension (`src/i18n.ts`, `_locales`), tray menu.
+  `scripts/i18n-check.mjs` checks key parity and that every used key exists.
+- Download dialog before every captured download (owner: "ask before it starts: where, server or local"):
+  file name, size/resumable, destination, folder with recent list and native "Browse…", Download / Later / let
+  the browser. New API: `POST /v1/probe`, `POST /v1/pickfolder` (local only, IFileOpenDialog owned by an invisible
+  topmost window), `dir` validation, `paused` on add, `info.canPickFolder/anyFolder`. Web UI Add dialog got the
+  folder field, Browse and "add paused" too.
+- Extension UI rebuilt on a shared stylesheet (`static/ui.css`, light/dark): popup with status badge, capture
+  switch, progress bars; settings page with language, ask-before-download, default destination.
+- Fixed: the version ping added in the third session ran inside `storage.onChanged` instead of at startup.
+- Version 0.3.0.
+
 ## 2026-11-11 - third session
 - Version 0.2.0 (ODM and extensions). First AMO-signed Firefox build committed as
   `internal/extbundle/files/odm-firefox.xpi`; from now on bump `extension/package.json` before every `pnpm sign`.

@@ -1,12 +1,13 @@
 {
   "name": "odm-extension",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
     "sign": "node sign.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/util.test.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.300",

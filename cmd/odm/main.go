@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -72,6 +73,16 @@ func client() (*api.Client, error) {
 	return c, nil
 }
 
+// cliDir makes --dir absolute for the local daemon (it only accepts absolute
+// folders, and "./isos" means the shell's directory here). A remote server's
+// paths are its own, so they are sent as typed.
+func cliDir(dir string, remote bool) (string, error) {
+	if dir == "" || remote {
+		return dir, nil
+	}
+	return filepath.Abs(dir)
+}
+
 func addCmd() *cobra.Command {
 	var dir, name, referer, cookies string
 	var headers []string
@@ -91,6 +102,10 @@ func addCmd() *cobra.Command {
 					return fmt.Errorf("bad --header %q (want 'Name: value')", h)
 				}
 				hdr[strings.TrimSpace(k)] = strings.TrimSpace(v)
+			}
+			dir, err := cliDir(dir, serverURL != "")
+			if err != nil {
+				return err
 			}
 			for _, u := range args {
 				d, err := cl.Add(queue.AddRequest{

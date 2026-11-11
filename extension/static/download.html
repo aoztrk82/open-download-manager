@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>ODM</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  body { padding: 16px 18px 12px; display: flex; flex-direction: column; gap: 14px; min-height: 100vh; }
+  header { display: flex; align-items: center; justify-content: space-between; }
+  .file { display: flex; gap: 12px; padding: 12px; align-items: center; }
+  .file .type { width: 42px; height: 42px; border-radius: 8px; background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 10px; font-weight: 700; letter-spacing: .03em; position: relative; }
+  .file .type svg { width: 26px; height: 26px; }
+  .file .type b { position: absolute; bottom: 4px; font-size: 9px; }
+  .file .meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .file input { font-weight: 600; }
+  .facts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 12px; }
+  .facts .host { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+  h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .choices.single { grid-template-columns: 1fr; }
+  .choice { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line);
+    border-radius: 8px; cursor: pointer; background: var(--bg); }
+  .choice input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .choice .ic { width: 22px; height: 22px; color: var(--muted); }
+  .choice:has(input:checked) .ic { color: var(--accent); }
+  .choice b { display: block; }
+  .choice small { color: var(--muted); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .choice div { min-width: 0; }
+  .dirrow { display: flex; gap: 6px; }
+  .dirrow input { flex: 1; min-width: 0; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+  .chk { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--muted); cursor: pointer; }
+  .chk input { margin: 2px 0 0; }
+  #status { min-height: 18px; font-size: 12px; color: var(--muted); }
+  #status.bad { color: var(--bad); }
+  footer { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+  .actions { display: flex; gap: 8px; align-items: center; }
+  .actions .spacer { flex: 1; }
+  .note { font-size: 11px; color: var(--muted); text-align: center; }
+  kbd { font: 11px ui-monospace, monospace; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+</style></head>
+<body>
+<header>
+  <div class="brand"><img src="icons/icon-32.png" alt=""><span data-i18n="dlg.title">New download</span></div>
+  <span class="badge" id="ext-ver"></span>
+</header>
+
+<section class="card file">
+  <div class="type" aria-hidden="true">
+    <svg class="ic" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+    <b id="ext-label"></b>
+  </div>
+  <div class="meta">
+    <input type="text" id="name" spellcheck="false" data-i18n-title="dlg.name" aria-label="File name">
+    <div class="facts"><span id="size"></span><span class="host" id="host"></span><span id="resume"></span></div>
+  </div>
+</section>
+
+<section>
+  <h2 data-i18n="dlg.where">Download to</h2>
+  <div class="choices" id="choices">
+    <label class="choice"><input type="radio" name="target" value="local" checked>
+      <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+      <div><b data-i18n="dlg.local">This computer</b><small data-i18n="dlg.localSub">ODM on this PC</small></div></label>
+    <label class="choice" id="choice-remote"><input type="radio" name="target" value="remote">
+      <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+      <div><b data-i18n="dlg.remote">Server</b><small id="remote-label"></small></div></label>
+  </div>
+</section>
+
+<section>
+  <h2 data-i18n="dlg.folder">Folder</h2>
+  <div class="dirrow">
+    <input type="text" id="dir" list="recent" spellcheck="false" aria-label="Folder">
+    <button class="btn" id="browse" type="button" data-i18n="dlg.browse">Browse…</button>
+  </div>
+  <datalist id="recent"></datalist>
+  <div class="hint" id="dir-hint"></div>
+</section>
+
+<label class="chk"><input type="checkbox" id="dont-ask"><span data-i18n="dlg.dontAsk">Don't ask again</span></label>
+
+<footer>
+  <div id="status" role="status"></div>
+  <div class="actions">
+    <button class="btn ghost" id="btn-browser" type="button" data-i18n="dlg.browser">Let the browser download it</button>
+    <span class="spacer"></span>
+    <button class="btn" id="btn-later" type="button" data-i18n="dlg.later">Later</button>
+    <button class="btn primary" id="btn-download" type="button"><span data-i18n="dlg.download">Download</span> <kbd>Enter</kbd></button>
+  </div>
+  <div class="note" data-i18n="dlg.closeNote">Closing this window cancels the download.</div>
+</footer>
+<script src="download.js" type="module"></script>
+</body></html>

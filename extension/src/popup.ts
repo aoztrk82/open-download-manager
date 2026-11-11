@@ -1,45 +1,57 @@
-import { LOCAL_URL, ensureLocal, ext, loadSettings, localClient, versionWarning } from "./api";
+import { LOCAL_URL, ensureLocal, ext, human, loadSettings, localClient, versionWarning, type Download } from "./api";
+import { applyI18n, h, t } from "./i18n";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-function human(n: number) {
-  if (n < 1024) return `${n} B`;
-  const u = "KMGTP";
-  let i = -1;
-  do {
-    n /= 1024;
-    i++;
-  } while (n >= 1024 && i < u.length - 1);
-  return `${n.toFixed(1)} ${u[i]}iB`;
+function setState(running: boolean) {
+  const b = $("state");
+  b.className = "badge " + (running ? "ok" : "");
+  b.replaceChildren(h("i", "dot"), " " + (running ? t("pop.running") : t("pop.notRunning")));
+  $("start").hidden = running;
+}
+
+function row(d: Download): HTMLLIElement {
+  const li = document.createElement("li");
+  const pct = d.size > 0 ? Math.min(100, (d.downloaded * 100) / d.size) : d.status === "completed" ? 100 : 0;
+  const name = document.createElement("div");
+  name.className = "name";
+  name.textContent = d.filename || d.request.url; // textContent: never innerHTML for remote data
+  name.title = d.request.url;
+  const bar = document.createElement("div");
+  bar.className = "bar " + d.status;
+  const fill = h("i");
+  fill.style.width = pct.toFixed(1) + "%";
+  bar.append(fill);
+  const meta = document.createElement("div");
+  meta.className = "row";
+  const st = document.createElement("span");
+  st.className = "st-" + d.status;
+  st.textContent = t(`status.${d.status}` as Parameters<typeof t>[0]);
+  const size = document.createElement("span");
+  size.textContent = d.size > 0 ? `${human(d.downloaded)} / ${human(d.size)} · ${Math.floor(pct)}%` : human(d.downloaded);
+  meta.append(st, size);
+  li.append(name, bar, meta);
+  return li;
 }
 
 async function refresh() {
-  const list = $("list");
   try {
     const odm = localClient();
-    const items = (await odm.list()).reverse().slice(0, 15);
-    list.replaceChildren(
-      ...items.map((d) => {
-        const li = document.createElement("li");
-        const pct = d.size > 0 ? Math.floor((d.downloaded * 100) / d.size) : 0;
-        const name = document.createElement("div");
-        name.className = "name";
-        name.textContent = d.filename || d.request.url; // textContent: never innerHTML for remote data
-        const meta = document.createElement("div");
-        meta.className = "meta";
-        meta.textContent = `${d.status} - ${human(d.downloaded)}${d.size > 0 ? ` / ${human(d.size)} (${pct}%)` : ""}`;
-        li.append(name, meta);
-        return li;
-      }),
-    );
-    if (!items.length) list.textContent = "No downloads yet.";
-    $("ver").textContent = versionWarning(await odm.info());
-    $("err").textContent = "";
-    $("start").hidden = true;
-  } catch (e) {
-    list.replaceChildren();
-    $("err").textContent = `ODM is not running (${(e as Error).message}).`;
-    $("start").hidden = false;
+    const [items, info] = await Promise.all([odm.list(), odm.info()]);
+    const recent = items.reverse().slice(0, 12);
+    $("list").replaceChildren(...recent.map(row));
+    $("empty").hidden = recent.length > 0;
+    $("empty").textContent = t("pop.empty");
+    const warn = versionWarning(info);
+    $("ver").hidden = !warn;
+    $("ver").textContent = warn;
+    $("err").hidden = true;
+    setState(true);
+  } catch {
+    $("list").replaceChildren();
+    $("empty").hidden = false;
+    $("empty").textContent = t("pop.notRunningHint");
+    setState(false);
   }
 }
 
@@ -49,26 +61,39 @@ async function showLast() {
   };
   const el = $("last");
   if (!lastEvent) {
-    el.textContent = "No downloads captured yet.";
+    el.className = "";
+    $("last-text").textContent = t("pop.noEvent");
     return;
   }
-  el.textContent = `${new Date(lastEvent.t).toLocaleTimeString()} - ${lastEvent.msg}`;
   el.className = lastEvent.ok ? "ok" : "bad";
+  $("last-text").textContent = `${new Date(lastEvent.t).toLocaleTimeString()} · ${lastEvent.msg}`;
 }
 
 async function init() {
   const s = await loadSettings();
+  applyI18n();
   const toggle = $<HTMLInputElement>("enabled");
   toggle.checked = s.enabled;
   toggle.addEventListener("change", () => ext.storage.local.set({ enabled: toggle.checked }));
-  $("open").addEventListener("click", () => ext.tabs.create({ url: LOCAL_URL }));
-  $("start").addEventListener("click", async () => {
-    $("err").textContent = "Starting ODM...";
+  $("open").addEventListener("click", async () => {
     try {
-      await ensureLocal();
+      await ensureLocal(); // the Web UI is served by ODM itself
     } catch (e) {
+      $("err").hidden = false;
       $("err").textContent = (e as Error).message;
       return;
+    }
+    await ext.tabs.create({ url: LOCAL_URL });
+    window.close();
+  });
+  $("start").addEventListener("click", async () => {
+    $("err").hidden = false;
+    $("err").textContent = t("pop.starting");
+    try {
+      await ensureLocal();
+      $("err").hidden = true;
+    } catch (e) {
+      $("err").textContent = (e as Error).message;
     }
     refresh();
   });
