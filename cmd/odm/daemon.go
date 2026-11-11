@@ -10,6 +10,7 @@ import (
 	"github.com/aoztrk82/open-download-manager/internal/api"
 	"github.com/aoztrk82/open-download-manager/internal/config"
 	"github.com/aoztrk82/open-download-manager/internal/engine"
+	"github.com/aoztrk82/open-download-manager/internal/extbundle"
 	"github.com/aoztrk82/open-download-manager/internal/queue"
 	"github.com/aoztrk82/open-download-manager/internal/store"
 	"github.com/aoztrk82/open-download-manager/internal/web"
@@ -54,12 +55,15 @@ func startDaemon(o daemonOpts) (*daemon, error) {
 		st.Close()
 		return nil, err
 	}
-	srv := &api.Server{Queue: q, Token: o.Token, DefaultDir: o.Dir}
+	srv := &api.Server{Queue: q, Token: o.Token, DefaultDir: o.Dir, Extensions: map[string]string{
+		"chrome": extbundle.ChromeVersion(), "firefox": extbundle.FirefoxVersion(),
+	}}
 	if !o.NoUI {
 		srv.UI = web.FS()
 	}
 	if o.Reveal {
 		srv.Reveal = revealInFolder
+		srv.Integrations = newIntegrations()
 	}
 	ln, err := net.Listen("tcp", o.Addr)
 	if err != nil {

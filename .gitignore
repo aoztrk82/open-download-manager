@@ -3,6 +3,8 @@
 /odm
 /dist/
 extension/dist/
+# Copied in by `pnpm build`; the signed xpi next to it is committed on purpose
+/internal/extbundle/files/chrome/
 *.exe
 *.test
 *.out
@@ -16,6 +18,10 @@ extension/dist/
 *.db
 *.db-wal
 *.db-shm
+
+# Secrets (AMO signing keys etc.)
+.env
+.env.*
 
 # Node
 node_modules/

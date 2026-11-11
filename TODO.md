@@ -14,19 +14,40 @@ What we know:
   loaded next to the new one would explain two ODM downloads); whether Firefox's own download panel is the
   "Firefox download" they see; what the `[ODM]` console lines say.
 
-Next steps, in order:
-1. Make `takeFromBrowser` log each step's result/error (`console.log`) and surface it via `report()`.
-   Ask the owner to open `about:debugging` -> ODM -> Inspect and paste the console.
-2. Confirm only one copy of the extension is loaded (remove all ODM entries in `about:debugging`, load once).
-3. If `downloads.cancel` does not stop it in Firefox (the item may already be past the point of cancel because the
-   link answers with `Content-Disposition: attachment`), switch Firefox to **blocking `webRequest`**:
-   `webRequest.onHeadersReceived` with `["blocking","responseHeaders"]` (needs `webRequest`, `webRequestBlocking`
-   permissions in `manifest.firefox.json`), detect download responses (attachment disposition or non-renderable
-   content type), return `{cancel: true}` and hand the URL to ODM. Chrome MV3 cannot block, so Chrome keeps the
-   `downloads.onCreated` path.
-4. Add a deduplication guard on the ODM side too (same URL added twice within a few seconds -> ignore).
+Diagnosis (2026-11-11, third session): the Gutenberg file is 302 -> 200 `application/epub+zip`, ~106 KB, **no
+`Content-Disposition`**. Firefox has saved it before the async `onCreated` handler can call `cancel()`.
 
-## 2. Verify (written but never run against the real thing)
+Done (compile/lint-checked only, NOT yet tested in Firefox):
+- Firefox now uses **blocking `webRequest.onHeadersReceived`** (main_frame/sub_frame, GET, status 200): a response
+  with `attachment` disposition or a content type Firefox does not render is cancelled and handed to ODM, so
+  Firefox never creates a download. `manifest.firefox.json` got `webRequest` + `webRequestBlocking`. Chrome has no
+  such permission, `ext.webRequest` is undefined there, and it keeps the `onCreated` path.
+- `onCreated` stays as fallback (e.g. "Save link as", renderable types) and skips URLs webRequest just took.
+- `takeFromBrowser` logs every step (`[ODM] ...` in the console) and reports when the browser kept its copy.
+
+Owner checklist:
+1. Remove every ODM entry in `about:debugging`, load `extension/dist/firefox` once.
+2. about:addons -> ODM -> Permissions: "Access your data for all websites" must be on (MV3 host permissions can
+   be ungranted; then webRequest sees nothing).
+3. Click the epub3 button: only ODM should download. Does the tab stay on the page, or show a
+   "blocked by an extension" error page? (error page = follow-up needed)
+4. Leave Firefox idle ~1 minute (background page gets suspended), then click epub3 again: the cold-wake path
+   waits for settings via a promise in the blocking listener.
+5. If it still fails: about:debugging -> ODM -> Inspect, paste the `[ODM]` lines.
+
+Still open: deduplication guard on the ODM side (same URL added twice within a few seconds -> ignore).
+
+## 2. Extension install from ODM (written 2026-11-11, needs the owner)
+- [ ] Owner: create AMO API keys, `$env:WEB_EXT_API_KEY=...; $env:WEB_EXT_API_SECRET=...; cd extension; pnpm sign`,
+      then rebuild odm.exe and commit `internal/extbundle/files/odm-firefox.xpi`. Only after TODO #1 works with a
+      temporary load (a signed version number cannot be reused).
+- [ ] Integrations > Install in Firefox: shows Firefox's "Add ODM?" prompt (firefox.exe <xpi path>, untested).
+- [ ] Chrome/Edge: "Open ... Extensions Page" really opens chrome://extensions / edge://extensions from the
+      command line (unverified); Load unpacked from the folder; extension id equals `chromeExtensionID`.
+- [ ] Tray restart after an extension change rewrites the folder while Chrome has it loaded; Chrome picks it up.
+- [ ] Popup version warning and the "last seen" column after installing.
+
+## 3. Verify (written but never run against the real thing)
 - [ ] Tray "Quit ODM" closes an open window within ~3 s (window pings the daemon, `runWindow` in `gui_windows.go`).
 - [ ] Frameless window: drag, edge resize, minimize/maximize/close buttons, double-click title to maximize.
 - [ ] Tray menu: "Start with Windows" (registry Run key), "Open downloads folder", icon rendering.
@@ -38,9 +59,14 @@ Next steps, in order:
 - [ ] Chooser window (`choose.html`) appears when a server URL is configured; closing it cancels the download.
 - [ ] FTP/FTPS against a real server (fake-server test not written yet).
 
-## 3. Small known issues
+## 4. Download engine ideas (from the connections view)
+- Dynamic splitting: when a connection finishes its range, split the largest remaining one so all connections
+  stay busy to the end (today finished connections sit idle).
+- Connections per download is fixed at 4 (`queue.Config.Connections`); make it a setting / per-download option.
+- Not visually checked yet: resize handles and the Connections tab in the real window (only `node --check`).
+
+## 5. Small known issues
 - Context menu shows a stray separator when "Show in Folder" is hidden (remote/browser use).
-- "Save to" in the details panel always shows the default directory, not the download's own.
 - Brief console flash on double-click (console-subsystem exe); needs a separate GUI-subsystem build to remove.
 - `internal/queue` has no cancel-during-download test for `Remove(deleteFile)` on active downloads.
 - Closing the chooser cancels the download (deliberate; could instead fall back to the browser).

@@ -43,6 +43,7 @@ type Manager struct {
 
 	mu      sync.Mutex
 	active  map[string]context.CancelFunc
+	live    map[string]engine.State // latest snapshot of running downloads (connections view)
 	wake    chan struct{}
 	subs    map[chan Event]struct{}
 	ctx     context.Context
@@ -58,6 +59,7 @@ func New(cfg Config, st *store.Store, eng *engine.Engine) *Manager {
 	return &Manager{
 		cfg: cfg, store: st, engine: eng,
 		active: map[string]context.CancelFunc{},
+		live:   map[string]engine.State{},
 		wake:   make(chan struct{}, 1),
 		subs:   map[chan Event]struct{}{},
 		ctx:    ctx, stop: stop,
@@ -267,7 +269,13 @@ func (m *Manager) schedule(workers *sync.WaitGroup) {
 
 func (m *Manager) run(ctx context.Context, d *store.Download) {
 	var last time.Time // zero: the first progress callback persists the file path right away
-	err := m.engine.Run(ctx, &d.State, engine.Options{
+	// The engine gets its own copy and is the only one writing it. Handing it
+	// &d.State let the callback below swap the segment array under the running
+	// segments: a racing Done increment could be lost and later chunks written
+	// at the wrong offset. Callbacks receive snapshots, which nobody mutates.
+	st := d.State
+	st.Segments = append([]engine.Segment(nil), d.State.Segments...)
+	err := m.engine.Run(ctx, &st, engine.Options{
 		Req: d.Req, Dir: d.Dir, Filename: d.Filename,
 		Connections: m.cfg.Connections, RateLimit: m.cfg.RateLimit,
 	}, func(s engine.State) {
@@ -276,7 +284,8 @@ func (m *Manager) run(ctx context.Context, d *store.Download) {
 			d.Filename = s.Filename
 		}
 		d.State, d.Path = s, s.Path // always keep the latest so the final save is complete
-		c := *d                     // subscribers get a copy; d keeps mutating
+		m.setLive(d.ID, &s)
+		c := *d // subscribers get a copy; d keeps mutating
 		m.publish(Event{Type: "update", Download: &c})
 		if time.Since(last) >= time.Second { // persist ~1/s
 			last = time.Now()
@@ -284,6 +293,10 @@ func (m *Manager) run(ctx context.Context, d *store.Download) {
 		}
 	})
 
+	m.setLive(d.ID, nil)
+	// Run sets the final (renamed) path and, for unknown sizes, the real size
+	// after its last callback.
+	d.State, d.Path = st, st.Path
 	// Re-read to see whether the user paused/removed while we ran.
 	cur, gerr := m.store.Get(d.ID)
 	if errors.Is(gerr, store.ErrNotFound) {

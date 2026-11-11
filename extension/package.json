@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
+    "sign": "node sign.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

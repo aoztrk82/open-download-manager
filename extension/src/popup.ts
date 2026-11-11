@@ -1,4 +1,4 @@
-import { LOCAL_URL, ensureLocal, ext, loadSettings, localClient } from "./api";
+import { LOCAL_URL, ensureLocal, ext, loadSettings, localClient, versionWarning } from "./api";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -33,6 +33,7 @@ async function refresh() {
       }),
     );
     if (!items.length) list.textContent = "No downloads yet.";
+    $("ver").textContent = versionWarning(await odm.info());
     $("err").textContent = "";
     $("start").hidden = true;
   } catch (e) {

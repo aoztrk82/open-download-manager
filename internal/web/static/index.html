@@ -91,8 +91,47 @@
 
   /* details panel */
   #details { height:170px; border-top:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; flex-shrink:0; }
-  #details .tabs { display:flex; background:var(--bar); border-bottom:1px solid var(--line); }
-  #details .tab { padding:4px 14px; border-right:1px solid var(--line); background:var(--bg); color:var(--fg-strong); }
+  #details .tabs { display:flex; background:var(--bar); border-bottom:1px solid var(--line); flex-shrink:0; }
+  #details .tab { padding:4px 14px; border-right:1px solid var(--line); color:var(--muted); cursor:default; }
+  #details .tab:hover { color:var(--fg); }
+  #details .tab.active { background:var(--bg); color:var(--fg-strong); }
+
+  /* resizable panes and columns */
+  .split-v { width:5px; margin-left:-3px; cursor:col-resize; flex-shrink:0; position:relative; z-index:3; }
+  .split-h { height:5px; margin-bottom:-3px; cursor:row-resize; flex-shrink:0; position:relative; z-index:3; }
+  .split-v:hover, .split-h:hover, .split-v.drag, .split-h.drag { background:var(--accent); }
+  th .rz { position:absolute; top:0; right:0; width:6px; height:100%; cursor:col-resize; z-index:2; }
+  th .rz:hover, th .rz.drag { background:var(--accent); }
+  body.resizing, body.resizing * { user-select:none !important; }
+
+  /* connections tab */
+  #detconn { flex:1; overflow:auto; padding:8px 12px; }
+  .csum { color:var(--muted); font-size:12px; display:flex; gap:14px; flex-wrap:wrap; }
+  .csum b { color:var(--fg); font-weight:600; }
+  .cmap { position:relative; height:16px; background:var(--prog-bg); border-radius:2px; overflow:hidden; margin:6px 0 10px; }
+  .cmap .seg { position:absolute; top:0; bottom:0; border-right:2px solid var(--panel); }
+  .cmap .seg i { position:absolute; inset:0 auto 0 0; background:var(--prog); }
+  .cmap .seg.active i { background:var(--ok); }
+  .cmap .seg.failed i { background:var(--bad); }
+  .cmap .seg span { position:absolute; inset:0; font-size:10px; line-height:16px; text-align:center; color:#fff; text-shadow:0 0 2px rgba(0,0,0,.7); }
+  .cgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; }
+  .cbox { border:1px solid var(--line); border-left:3px solid var(--muted); border-radius:3px; padding:6px 9px; background:var(--bg); font-size:12px; }
+  .cbox .h { display:flex; align-items:center; gap:6px; font-weight:600; color:var(--fg-strong); }
+  .cbox .h .s { margin-left:auto; font-weight:400; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+  .cbox .bar { height:6px; background:var(--prog-bg); border-radius:2px; margin:6px 0 5px; overflow:hidden; }
+  .cbox .bar i { display:block; height:100%; background:var(--prog); }
+  .cbox .r { display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .cbox .r b { color:var(--fg); font-weight:400; }
+  .cbox .e { color:var(--bad); overflow-wrap:anywhere; margin-top:3px; }
+  .cbox .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0; }
+  .cbox.active { border-left-color:var(--ok); } .cbox.active .dot { background:var(--ok); animation:pulse 1s ease-in-out infinite; } .cbox.active .s { color:var(--ok); }
+  .cbox.active .bar i { background:var(--ok); }
+  .cbox.connecting, .cbox.retrying { border-left-color:var(--warn); } .cbox.connecting .dot, .cbox.retrying .dot { background:var(--warn); }
+  .cbox.connecting .s, .cbox.retrying .s { color:var(--warn); }
+  .cbox.done { border-left-color:var(--status); } .cbox.done .dot { background:var(--status); }
+  .cbox.failed { border-left-color:var(--bad); } .cbox.failed .dot { background:var(--bad); } .cbox.failed .s { color:var(--bad); }
+  @keyframes pulse { 50% { opacity:.3; } }
+  .cempty { color:var(--muted); padding:6px 0; }
   #detbody { flex:1; overflow:auto; padding:8px 12px; display:grid; grid-template-columns:130px 1fr; gap:3px 12px; align-content:start; user-select:text; }
   #detbody .k { color:var(--muted); } #detbody .v { overflow-wrap:anywhere; }
 
@@ -124,6 +163,16 @@
   .dialog ul.names { margin:0; padding-left:18px; max-height:110px; overflow:auto; color:var(--muted); user-select:text; }
   .err { color:var(--bad); font-size:12px; min-height:16px; }
   #login .dialog { margin-top:8vh; }
+  .dialog.wide { width:min(640px, 94vw); }
+  .integ { display:flex; flex-direction:column; gap:8px; }
+  .integ .row { border:1px solid var(--line); border-radius:3px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+  .integ .head { display:flex; align-items:center; gap:10px; }
+  .integ .head b { color:var(--fg-strong); min-width:70px; }
+  .integ .st { font-size:12px; color:var(--muted); flex:1; }
+  .integ .st.ok { color:var(--ok); } .integ .st.warn { color:var(--warn); } .integ .st.bad { color:var(--bad); }
+  .integ .acts { display:flex; gap:6px; flex-wrap:wrap; }
+  .integ .path { font-family:Consolas, monospace; font-size:12px; color:var(--muted); user-select:text; overflow-wrap:anywhere; }
+  .integ ol { margin:0; padding-left:18px; font-size:12px; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -154,9 +203,13 @@
     <div class="item check" data-act="toggleStatus" id="m-status"><span>Status Bar</span></div>
     <div class="sep"></div>
     <div class="item" data-act="theme"><span>Toggle Light/Dark Theme</span></div>
+    <div class="item" data-act="resetLayout"><span>Reset Layout</span></div>
   </div></div>
   <div class="menu" data-menu="tools"><div class="title">Tools</div><div class="dropdown">
     <div class="item" data-act="signout"><span>Change Server Token…</span></div>
+  </div></div>
+  <div class="menu" data-menu="integrations" data-needs="integrate" hidden><div class="title">Integrations</div><div class="dropdown">
+    <div class="item" data-act="integrations"><span>Browser Extensions…</span></div>
   </div></div>
   <div class="menu" data-menu="help"><div class="title">Help</div><div class="dropdown">
     <div class="item" data-act="about"><span>About ODM</span></div>
@@ -191,9 +244,10 @@
     <div class="nav" data-filter="proto:http"><span class="dot"></span>HTTP / HTTPS<span class="count" id="c-http">0</span></div>
     <div class="nav" data-filter="proto:ftp"><span class="dot"></span>FTP / FTPS<span class="count" id="c-ftp">0</span></div>
   </div>
+  <div class="split-v" id="split-side" title="Drag to resize"></div>
   <div id="center">
     <div id="tablewrap" tabindex="0">
-      <table>
+      <table id="tbl">
         <colgroup><col style="width:34%"><col style="width:11%"><col style="width:17%"><col style="width:11%"><col style="width:11%"><col style="width:8%"><col style="width:8%"></colgroup>
         <thead><tr>
           <th data-sort="name">Name</th><th data-sort="size">Size</th><th data-sort="pct">Progress</th><th data-sort="status">Status</th>
@@ -203,9 +257,11 @@
       </table>
       <div id="empty" hidden><b>No downloads</b>Press Ctrl+N or click Add to start one.</div>
     </div>
+    <div class="split-h" id="split-det" title="Drag to resize"></div>
     <div id="details">
-      <div class="tabs"><div class="tab">General</div></div>
+      <div class="tabs"><div class="tab" data-tab="general">General</div><div class="tab" data-tab="conns">Connections</div></div>
       <div id="detbody"></div>
+      <div id="detconn" hidden></div>
     </div>
   </div>
 </div>
@@ -349,16 +405,88 @@ function render() {
 }
 
 function renderDetails(sel) {
+  $("detbody").hidden = detTab !== "general";
+  $("detconn").hidden = detTab !== "conns";
+  $$("#details .tab").forEach(t => t.classList.toggle("active", t.dataset.tab === detTab));
+  if (detTab === "conns") return renderConns(sel);
   const d = sel.length === 1 ? sel[0] : null;
   if (!d) { $("detbody").innerHTML = `<div class="k" style="grid-column:1/-1">${sel.length ? sel.length + " downloads selected" : "Select a download to see its details."}</div>`; return; }
   const rows = [
-    ["Name", nameOf(d)], ["URL", d.request.url], ["Save to", (info ? info.defaultDir : "") ],
+    ["Name", nameOf(d)], ["URL", d.request.url], ["Save to", d.path || d.dir || (info ? info.defaultDir : "")],
     ["Size", d.size > 0 ? fmtBytes(d.size) + " (" + d.size.toLocaleString() + " bytes)" : "Unknown"],
     ["Downloaded", fmtBytes(d.downloaded)], ["Status", cap(d.status)], ["Added", new Date(d.createdAt).toLocaleString()],
   ];
   if (d.request.referer) rows.push(["Referer", d.request.referer]);
   if (d.error) rows.push(["Error", d.error]);
   $("detbody").innerHTML = rows.map(([k, v]) => `<div class="k">${k}</div><div class="v">${esc(v)}</div>`).join("");
+}
+
+/* ---------- connections tab ---------- */
+// One box per segment: shows that a download really runs over parallel
+// connections (like qBittorrent's peers tab). Polled only while visible.
+let detTab = store.get("odm.dettab") === "conns" ? "conns" : "general";
+let conns = null, connsFor = null, connsBusy = false;
+const connSpeed = new Map(); // segment index -> {done, t, bps}
+async function fetchConns() {
+  const sel = selItems();
+  if (detTab !== "conns" || $("details").hidden || sel.length !== 1 || connsBusy) return;
+  const id = sel[0].id;
+  connsBusy = true;
+  try {
+    const c = await api(`/downloads/${id}/connections`);
+    if (connsFor !== id) { connSpeed.clear(); connsFor = id; }
+    const now = performance.now();
+    for (const cn of c.connections) {
+      const p = connSpeed.get(cn.index);
+      let bps = 0;
+      if (c.live && cn.state === "active" && p && now > p.t) {
+        const inst = Math.max(0, (cn.done - p.done) / ((now - p.t) / 1000));
+        bps = p.bps ? p.bps * .6 + inst * .4 : inst;
+      }
+      connSpeed.set(cn.index, { done:cn.done, t:now, bps });
+    }
+    conns = c;
+  } catch (e) { conns = { error:e.message }; connsFor = id; }
+  finally { connsBusy = false; }
+  renderConns(selItems());
+}
+const CONN_LABEL = { waiting:"Waiting", connecting:"Connecting", active:"Receiving", retrying:"Retrying", done:"Done", stopped:"Stopped", failed:"Failed" };
+function renderConns(sel) {
+  const box = $("detconn");
+  if (sel.length !== 1) { box.innerHTML = `<div class="cempty">${sel.length ? sel.length + " downloads selected." : "Select a download to see its connections."}</div>`; return; }
+  const d = sel[0];
+  if (connsFor !== d.id || !conns) { if (connsFor !== d.id) box.innerHTML = `<div class="cempty">Loading…</div>`; fetchConns(); return; }
+  if (conns.error) { box.innerHTML = `<div class="cempty">${esc(conns.error)}</div>`; return; }
+  const list = conns.connections;
+  if (!list.length) { box.innerHTML = `<div class="cempty">${d.status === "queued" ? "Waiting in the queue; connections open when it starts." : "No connection data yet."}</div>`; return; }
+  const size = conns.size > 0 ? conns.size : 0;
+  const len = cn => cn.end >= 0 ? cn.end - cn.start : 0;
+  const frac = cn => len(cn) > 0 ? Math.min(1, cn.done / len(cn)) : (cn.state === "done" ? 1 : 0);
+  const active = list.filter(cn => cn.state === "active").length;
+  const total = list.reduce((a, cn) => a + ((connSpeed.get(cn.index) || {}).bps || 0), 0);
+  const sum = `<div class="csum"><span><b>${list.length}</b> connection${list.length > 1 ? "s" : ""}</span>
+    <span><b>${conns.live ? active : 0}</b> receiving now</span>
+    ${conns.live ? `<span>Combined <b>${fmtBytes(total)}/s</b></span>` : `<span>${cap(d.status)}</span>`}
+    <span>Server ${conns.acceptRanges ? "supports" : "<b>does not support</b>"} ranged requests${conns.acceptRanges ? "" : " (single connection)"}</span></div>`;
+  const map = size ? `<div class="cmap" title="Where in the file each connection writes">${list.map(cn => {
+      const st = conns.live ? cn.state : (cn.state === "done" ? "done" : "stopped");
+      return `<div class="seg ${st}" style="left:${cn.start / size * 100}%;width:${len(cn) / size * 100}%"><i style="width:${frac(cn) * 100}%"></i><span>${cn.index + 1}</span></div>`;
+    }).join("")}</div>` : "";
+  const boxes = list.map(cn => {
+    const st = cn.state, f = frac(cn), bps = (connSpeed.get(cn.index) || {}).bps || 0;
+    const range = cn.end >= 0 ? `${fmtBytes(cn.start)} – ${fmtBytes(cn.end)}` : `${fmtBytes(cn.start)} – end`;
+    const left = len(cn) > 0 && st === "active" && bps > 0 ? fmtEta((len(cn) - cn.done) / bps) : "";
+    return `<div class="cbox ${st}">
+      <div class="h"><span class="dot"></span>Connection ${cn.index + 1}<span class="s">${CONN_LABEL[st] || esc(st)}</span></div>
+      <div class="bar"><i style="width:${(f * 100).toFixed(1)}%"></i></div>
+      <div class="r"><span>Range</span><b>${range}</b></div>
+      <div class="r"><span>Received</span><b>${fmtBytes(cn.done)}${len(cn) > 0 ? ` / ${fmtBytes(len(cn))} (${(f * 100).toFixed(1)}%)` : ""}</b></div>
+      <div class="r"><span>Speed</span><b>${st === "active" ? fmtBytes(bps) + "/s" + (left ? " · " + left : "") : "—"}</b></div>
+      ${cn.retries ? `<div class="r"><span>Retries</span><b>${cn.retries}</b></div>` : ""}
+      ${cn.error && st !== "done" ? `<div class="e">${esc(cn.error)}</div>` : ""}
+    </div>`;
+  }).join("");
+  box.innerHTML = sum + map + `<div class="cgrid">${boxes}</div>`;
 }
 
 /* ---------- data loop ---------- */
@@ -369,6 +497,7 @@ async function refresh() {
     updateSpeeds();
     for (const id of [...selected]) if (!items.some(d => d.id === id)) selected.delete(id);
     render();
+    fetchConns();
   } catch (e) {
     if (online) { online = false; setConn(); }
   }
@@ -383,7 +512,10 @@ function setConn() {
 const selItems = () => items.filter(d => selected.has(d.id));
 async function each(list, fn) { for (const d of list) { try { await fn(d); } catch (e) { toast(e.message); } } refresh(); }
 // "Show in Folder" only makes sense when the daemon runs on this machine.
-const applyInfo = () => $$("[data-needs=reveal]").forEach(el => { el.hidden = !(info && info.canReveal); });
+const applyInfo = () => {
+  $$("[data-needs=reveal]").forEach(el => { el.hidden = !(info && info.canReveal); });
+  $$("[data-needs=integrate]").forEach(el => { el.hidden = !(info && info.canIntegrate); });
+};
 const toast = msg => { $("s-dir").textContent = msg; setTimeout(() => { $("s-dir").textContent = dirLabel(); }, 4000); };
 const dirLabel = () => info ? "Saving to " + info.defaultDir : "";
 
@@ -407,9 +539,17 @@ const actions = {
   theme: () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"),
   signout: () => promptToken(true),
   about: () => aboutDialog(),
+  integrations: () => integrationsDialog(),
+  resetLayout: () => {
+    for (const k of ["odm.size.sidebar", "odm.size.details", "odm.cols"]) store.set(k, "");
+    $("sidebar").style.width = ""; $("details").style.height = "";
+    colPx = null; applyCols();
+  },
 };
-function setPane(id, show) { $(id).hidden = !show; store.set("odm.pane." + id, show ? "1" : "0"); syncChecks(); }
+function setPane(id, show) { $(id).hidden = !show; store.set("odm.pane." + id, show ? "1" : "0"); syncChecks(); if (id === "details" && show) render(); }
 function syncChecks() {
+  $("split-side").hidden = $("sidebar").hidden;
+  $("split-det").hidden = $("details").hidden;
   $("m-sidebar").classList.toggle("on", !$("sidebar").hidden);
   $("m-details").classList.toggle("on", !$("details").hidden);
   $("m-status").classList.toggle("on", !$("statusbar").hidden);
@@ -484,6 +624,50 @@ function confirmRemove(list) {
 function aboutDialog() {
   dialog("About ODM", `<div>Open Download Manager ${esc(info ? info.version : "")}</div><div style="color:var(--muted)">HTTP(S) / FTP(S) segmented downloads with a shared local & remote server.</div>`, [{ label:"OK", primary:true }]);
 }
+// Browser extensions ship inside odm.exe and are installed from here, so the
+// extension version always follows the program (no store auto-updates).
+const BROWSER_NAMES = { firefox:"Firefox", chrome:"Chrome", edge:"Edge" };
+async function integrationsDialog() {
+  dialog("Browser Extensions", `<div class="integ" id="i-list">Loading…</div><div class="err" id="i-err"></div>`, [{ label:"Close", primary:true }]);
+  const el = $("dlg");
+  el.querySelector(".dialog").classList.add("wide");
+  const err = el.querySelector("#i-err");
+  let list;
+  try { list = await api("/integrations"); } catch (e) { err.textContent = e.message; return; }
+  const box = el.querySelector("#i-list"); if (!box) return; // dialog closed meanwhile
+  box.innerHTML = list.map(it => {
+    const name = BROWSER_NAMES[it.id] || it.id;
+    let st, cls;
+    if (!it.bundled) { st = "Not included in this ODM build"; cls = "bad"; }
+    else if (!it.seen) { st = `Not detected yet (ODM bundles ${it.bundled}). If it is installed, open its ODM popup once.`; cls = ""; }
+    else if (it.seen.version === it.bundled) { st = `Installed ${it.seen.version} · up to date`; cls = "ok"; }
+    else { st = `Installed ${it.seen.version} · ODM bundles ${it.bundled}, update it`; cls = "warn"; }
+    if (it.seen) st += ` · last seen ${new Date(it.seen.at).toLocaleString()}`;
+    const off = !it.installed || !it.bundled ? " disabled" : "";
+    const missing = it.installed ? "" : `<div class="st bad">${esc(name)} was not found on this computer.</div>`;
+    const acts = it.id === "firefox"
+      ? `<button class="btn primary" data-i-act="install" data-id="firefox"${off}>Install in Firefox</button>`
+      : `<button class="btn primary" data-i-act="install" data-id="${esc(it.id)}"${off}>Open ${esc(name)} Extensions Page</button>
+         <button class="btn" data-i-act="folder" data-id="${esc(it.id)}"${it.bundled ? "" : " disabled"}>Open Folder</button>
+         <button class="btn" data-i-act="copy" data-path="${esc(it.folder || "")}">Copy Path</button>`;
+    const steps = it.id === "firefox"
+      ? `<ol><li>Remove any temporary ODM add-on in about:debugging first.</li><li>Firefox asks "Add ODM?": click Add.</li></ol>`
+      : `<ol><li>If the extensions page does not open, type <b>${it.id === "edge" ? "edge" : "chrome"}://extensions</b> in the address bar.</li>
+         <li>Turn on <b>Developer mode</b> on the extensions page.</li><li>Click <b>Load unpacked</b> and pick the folder below (once).</li>
+         <li>When ODM updates, the folder is refreshed; restart ${esc(name)} or press the extension's reload button.</li></ol>
+         <div class="path">${esc(it.folder || "")}</div>`;
+    return `<div class="row"><div class="head"><b>${esc(name)}</b><span class="st ${cls}">${esc(st)}</span></div>${missing}${steps}<div class="acts">${acts}</div></div>`;
+  }).join("");
+  box.onclick = async e => {
+    const b = e.target.closest("button[data-i-act]"); if (!b || b.disabled) return;
+    err.textContent = "";
+    try {
+      if (b.dataset.iAct === "copy") { await navigator.clipboard.writeText(b.dataset.path); toast("Path copied"); return; }
+      await api(`/integrations/${b.dataset.id}/${b.dataset.iAct}`, { method:"POST" });
+      if (b.dataset.iAct === "install") toast(b.dataset.id === "firefox" ? "Firefox opened the install prompt" : "Opened the extensions page and the folder");
+    } catch (ex) { err.textContent = ex.message; }
+  };
+}
 function promptToken(manual) {
   if (manual) tokenPromptMuted = false;
   if (tokenPromptMuted || !$("dlg").hidden) return;
@@ -556,6 +740,59 @@ document.addEventListener("keydown", e => {
   else if (e.key === "Escape") { closeMenus(); hideCtx(); }
 });
 
+/* ---------- resizing ---------- */
+// Pointer-captured drags for the sidebar, the details panel and table columns;
+// sizes are remembered per browser profile (localStorage).
+function dragger(handle, cursor, start, move, end) {
+  handle.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const ctx = start(e);
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add("drag"); document.body.classList.add("resizing"); document.body.style.cursor = cursor;
+    const mv = ev => move(ev, ctx);
+    const up = () => {
+      handle.removeEventListener("pointermove", mv); handle.removeEventListener("pointerup", up); handle.removeEventListener("pointercancel", up);
+      handle.classList.remove("drag"); document.body.classList.remove("resizing"); document.body.style.cursor = "";
+      end(ctx);
+    };
+    handle.addEventListener("pointermove", mv); handle.addEventListener("pointerup", up); handle.addEventListener("pointercancel", up);
+  });
+}
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+dragger($("split-side"), "col-resize",
+  e => ({ x:e.clientX, w:$("sidebar").offsetWidth }),
+  (e, c) => { $("sidebar").style.width = clamp(c.w + e.clientX - c.x, 140, innerWidth * .5) + "px"; },
+  () => store.set("odm.size.sidebar", $("sidebar").offsetWidth));
+dragger($("split-det"), "row-resize",
+  e => ({ y:e.clientY, h:$("details").offsetHeight }),
+  (e, c) => { $("details").style.height = clamp(c.h - (e.clientY - c.y), 90, $("center").clientHeight - 60) + "px"; },
+  () => store.set("odm.size.details", $("details").offsetHeight));
+$("split-det").addEventListener("dblclick", () => { $("details").style.height = ""; store.set("odm.size.details", ""); });
+$("split-side").addEventListener("dblclick", () => { $("sidebar").style.width = ""; store.set("odm.size.sidebar", ""); });
+// Columns: percentages until the user drags one, then fixed pixel widths
+// (the table may then scroll sideways, like qBittorrent).
+let colPx = (() => { try { const v = JSON.parse(store.get("odm.cols") || "null"); return Array.isArray(v) && v.length === $$("#tbl col").length ? v : null; } catch { return null; } })();
+const COL_PCT = $$("#tbl col").map(c => c.style.width);
+function applyCols() {
+  const cols = $$("#tbl col");
+  if (!colPx) { cols.forEach((c, i) => c.style.width = COL_PCT[i]); $("tbl").style.width = ""; return; }
+  cols.forEach((c, i) => c.style.width = colPx[i] + "px");
+  $("tbl").style.width = colPx.reduce((a, b) => a + b, 0) + "px";
+}
+$$("#tbl th").forEach((th, i) => {
+  const rz = document.createElement("span"); rz.className = "rz"; rz.title = "Drag to resize, double-click to reset all";
+  th.appendChild(rz);
+  dragger(rz, "col-resize",
+    e => { if (!colPx) { colPx = $$("#tbl th").map(h => h.offsetWidth); applyCols(); } return { x:e.clientX, w:colPx[i] }; },
+    (e, c) => { colPx[i] = Math.max(40, Math.round(c.w + e.clientX - c.x)); applyCols(); },
+    () => store.set("odm.cols", JSON.stringify(colPx)));
+  rz.addEventListener("click", e => e.stopPropagation()); // not a sort click
+  rz.addEventListener("dblclick", e => { e.stopPropagation(); colPx = null; store.set("odm.cols", ""); applyCols(); });
+});
+// details tabs
+$$("#details .tab").forEach(t => t.onclick = () => { detTab = t.dataset.tab; store.set("odm.dettab", detTab); render(); });
+
 /* ---------- desktop app window (frameless) ---------- */
 // window.odmWin only exists inside the tray app's WebView2 window; in a normal
 // browser the OS provides the title bar, so these controls stay hidden.
@@ -571,6 +808,10 @@ if (typeof window.odmWin === "function") {
 async function start() {
   setTheme(store.get("odm.theme") || "dark");
   for (const id of ["sidebar", "details", "statusbar"]) if (store.get("odm.pane." + id) === "0") $(id).hidden = true;
+  const sw = +store.get("odm.size.sidebar"), dh = +store.get("odm.size.details");
+  if (sw) $("sidebar").style.width = clamp(sw, 140, innerWidth * .5) + "px";
+  if (dh) $("details").style.height = clamp(dh, 90, innerHeight * .7) + "px";
+  applyCols();
   syncChecks(); setConn(); render();
   try { info = await api("/info"); $("s-dir").textContent = dirLabel(); applyInfo(); } catch { /* promptToken shown on 401 */ }
   refresh(); setInterval(refresh, 1000);

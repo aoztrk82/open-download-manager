@@ -131,3 +131,122 @@ func TestRemoveDeletesFileOnRequest(t *testing.T) {
 		t.Fatalf("file must be kept when deleteFile is false: %v", err)
 	}
 }
+
+func TestConnectionsView(t *testing.T) {
+	data := bytes.Repeat([]byte("odm"), 1_000_000) // 3 MB: split into several segments
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "c.bin", time.Time{}, bytes.NewReader(data))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "odm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m := New(Config{DefaultDir: dir, Connections: 4}, st, engine.New())
+	if err := m.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	d, err := m.Add(AddRequest{Request: proto.Request{URL: srv.URL + "/c.bin"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, m, d.ID, store.Completed)
+
+	c, err := m.Connections(d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Live || len(c.Connections) != 4 || c.Size != int64(len(data)) {
+		t.Fatalf("view: %+v", c)
+	}
+	var sum int64
+	for _, cn := range c.Connections {
+		if cn.State != engine.ConnDone {
+			t.Fatalf("connection %d: %q", cn.Index, cn.State)
+		}
+		sum += cn.Done
+	}
+	if sum != int64(len(data)) {
+		t.Fatalf("done bytes %d", sum)
+	}
+	if _, err := m.Connections("nope"); err == nil {
+		t.Fatal("unknown id must fail")
+	}
+}
+
+type slowWriter struct{ http.ResponseWriter }
+
+func (s slowWriter) Write(b []byte) (int, error) {
+	time.Sleep(40 * time.Millisecond)
+	return s.ResponseWriter.Write(b)
+}
+
+// Polling the connections view while segments are being written must neither
+// race with the engine nor disturb the bytes that end up on disk.
+func TestConnectionsWhileRunning(t *testing.T) {
+	data := testBytes(4 << 20)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(slowWriter{w}, r, "r.bin", time.Time{}, bytes.NewReader(data))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "odm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m := New(Config{DefaultDir: dir, Connections: 4}, st, engine.New())
+	if err := m.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	d, err := m.Add(AddRequest{Request: proto.Request{URL: srv.URL + "/r.bin"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop := make(chan struct{})
+	sawLive := make(chan bool, 1)
+	go func() {
+		live := false
+		for {
+			select {
+			case <-stop:
+				sawLive <- live
+				return
+			default:
+			}
+			if c, err := m.Connections(d.ID); err == nil && c.Live {
+				live = true
+				for _, cn := range c.Connections {
+					_ = cn.Done + int64(len(cn.State))
+				}
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}()
+	done := waitStatus(t, m, d.ID, store.Completed)
+	close(stop)
+	if !<-sawLive {
+		t.Fatal("never saw the download live")
+	}
+	if filepath.Base(done.Path) != "r.bin" {
+		t.Fatalf("final path %q (still the .part?)", done.Path)
+	}
+	got, _ := os.ReadFile(filepath.Join(dir, "r.bin"))
+	if !bytes.Equal(got, data) {
+		t.Fatal("content mismatch")
+	}
+}
+
+func testBytes(n int) []byte {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = byte(i*7 + i/251)
+	}
+	return b
+}

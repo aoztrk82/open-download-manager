@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/aoztrk82/open-download-manager/internal/api"
 	"github.com/aoztrk82/open-download-manager/internal/config"
+	"github.com/aoztrk82/open-download-manager/internal/extbundle"
 )
 
 const runKey = `Software\Microsoft\Windows\CurrentVersion\Run`
@@ -68,6 +70,11 @@ func runTray(background bool) error {
 	// Make the browser extension able to start us later (idempotent, cheap).
 	if err := registerNativeHost(); err != nil {
 		fmt.Fprintln(os.Stderr, "native messaging registration:", err)
+	}
+	// Keep the unpacked Chrome/Edge extension in step with this exe; the browser
+	// picks it up on its next start. Not bundled is fine (Go-only build).
+	if _, err := syncChromeFolder(); err != nil && !errors.Is(err, extbundle.ErrNotBundled) {
+		fmt.Fprintln(os.Stderr, "chrome extension folder:", err)
 	}
 	cl := localClient()
 	if _, err := cl.Info(); err == nil {

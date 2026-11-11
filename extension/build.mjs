@@ -1,6 +1,10 @@
 // Bundles the shared TS once per target and drops in that target's manifest.
+// The version comes from package.json only, so both browsers and odm.exe agree
+// (AMO also refuses to sign a version twice: bump package.json before `pnpm sign`).
 import { build } from "esbuild";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+
+const { version } = JSON.parse(readFileSync("package.json", "utf8"));
 
 rmSync("dist", { recursive: true, force: true });
 for (const target of ["chrome", "firefox"]) {
@@ -20,6 +24,15 @@ for (const target of ["chrome", "firefox"]) {
     logLevel: "warning",
   });
   cpSync("static", out, { recursive: true });
-  cpSync(`manifest.${target}.json`, `${out}/manifest.json`);
+  const manifest = JSON.parse(readFileSync(`manifest.${target}.json`, "utf8"));
+  manifest.version = version;
+  writeFileSync(`${out}/manifest.json`, JSON.stringify(manifest, null, 2) + "\n");
 }
-console.log("built dist/chrome and dist/firefox");
+
+// odm.exe embeds the Chrome/Edge build (internal/extbundle) and installs it
+// from there, so the extension always matches the exe it came with.
+const bundle = "../internal/extbundle/files/chrome";
+rmSync(bundle, { recursive: true, force: true });
+cpSync("dist/chrome", bundle, { recursive: true });
+
+console.log(`built dist/chrome and dist/firefox (${version}); chrome copy embedded for odm.exe`);

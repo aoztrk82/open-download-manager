@@ -23,7 +23,8 @@ download. One Go core shared by CLI, server and tray app; one TypeScript codebas
 ## Later
 - Packaging: goreleaser (Windows/Linux), signed installer, auto-update, GitHub Actions CI (go test, extension build,
   web-ext lint).
-- Publish the extensions (AMO for Firefox, Chrome Web Store); needs signing and a privacy statement.
+- Extensions are deliberately not published to stores (they install from odm.exe, see CLAUDE.md). Firefox uses
+  AMO *unlisted* signing. Revisit the Chrome Web Store only if "Load unpacked" proves too awkward.
 - GUI-subsystem build so double-click never flashes a console; proper app icon and tray icon assets.
 - Linux/macOS tray (the daemon and CLI already build there; tray, window and native-host registration are Windows only).
 - Torrent/magnet and media-site support are explicitly **not** planned.

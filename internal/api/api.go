@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -29,13 +31,70 @@ type Server struct {
 	// Reveal shows a file in the OS file manager. Only set for the local daemon:
 	// on a remote server it would open a window on the server, not on the client.
 	Reveal func(path string) error
+	// Integrations installs the bundled browser extensions. Local daemon only,
+	// for the same reason as Reveal.
+	Integrations Integrations
+	// Extensions are the extension versions bundled in this build, by browser
+	// family ("chrome", "firefox"); empty when not bundled.
+	Extensions map[string]string
+
+	seenMu sync.Mutex
+	seen   map[string]Seen
 }
 
 type Info struct {
-	Name       string `json:"name"`
-	Version    string `json:"version"`
-	DefaultDir string `json:"defaultDir"`
-	CanReveal  bool   `json:"canReveal"`
+	Name         string            `json:"name"`
+	Version      string            `json:"version"`
+	DefaultDir   string            `json:"defaultDir"`
+	CanReveal    bool              `json:"canReveal"`
+	CanIntegrate bool              `json:"canIntegrate"`
+	Extensions   map[string]string `json:"extensions"`
+}
+
+// Browsers ODM ships an extension for. Edge uses the Chrome build.
+var Browsers = []string{"firefox", "chrome", "edge"}
+
+// Family maps a browser to the extension build it uses.
+func Family(browser string) string {
+	if browser == "edge" {
+		return "chrome"
+	}
+	return browser
+}
+
+func knownBrowser(b string) bool {
+	for _, x := range Browsers {
+		if x == b {
+			return true
+		}
+	}
+	return false
+}
+
+// Seen is the last extension that talked to us from a browser.
+type Seen struct {
+	Version string    `json:"version"`
+	At      time.Time `json:"at"`
+}
+
+// Integrations is implemented per OS by the local daemon.
+type Integrations interface {
+	// Browser reports whether the browser is installed and, for unpacked
+	// installs, the folder the user loads the extension from.
+	Browser(id string) (installed bool, folder string)
+	// Install starts the browser-side install of the bundled extension.
+	Install(id string) error
+	// OpenFolder shows the unpacked extension folder (Chrome/Edge).
+	OpenFolder(id string) error
+}
+
+// Integration is one row of GET /v1/integrations.
+type Integration struct {
+	ID        string `json:"id"`
+	Installed bool   `json:"installed"` // the browser, not the extension
+	Bundled   string `json:"bundled"`   // extension version in this build
+	Seen      *Seen  `json:"seen,omitempty"`
+	Folder    string `json:"folder,omitempty"`
 }
 
 func (s *Server) Handler() http.Handler {
@@ -44,11 +103,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/downloads", s.list)
 	mux.HandleFunc("POST /v1/downloads", s.add)
 	mux.HandleFunc("GET /v1/downloads/{id}", s.get)
+	mux.HandleFunc("GET /v1/downloads/{id}/connections", s.connections)
 	mux.HandleFunc("POST /v1/downloads/{id}/pause", s.act(s.Queue.Pause))
 	mux.HandleFunc("POST /v1/downloads/{id}/resume", s.act(s.Queue.Resume))
 	mux.HandleFunc("POST /v1/downloads/{id}/reveal", s.reveal)
 	mux.HandleFunc("DELETE /v1/downloads/{id}", s.remove)
 	mux.HandleFunc("GET /v1/events", s.events)
+	mux.HandleFunc("GET /v1/integrations", s.integrations)
+	mux.HandleFunc("POST /v1/integrations/{id}/install", s.integrationAct(func(i Integrations, id string) error { return i.Install(id) }))
+	mux.HandleFunc("POST /v1/integrations/{id}/folder", s.integrationAct(func(i Integrations, id string) error { return i.OpenFolder(id) }))
 	if s.UI != nil {
 		mux.Handle("/", http.FileServerFS(s.UI))
 	}
@@ -138,7 +201,67 @@ func (s *Server) cors(next http.Handler) http.Handler {
 }
 
 func (s *Server) info(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.DefaultDir, CanReveal: s.Reveal != nil})
+	// Extensions report themselves as ?ext=<browser>/<version>. A query param
+	// rather than a header: a new header would change the CORS preflight and an
+	// older daemon would then reject every call from a newer extension.
+	if b, v, ok := strings.Cut(r.URL.Query().Get("ext"), "/"); ok && knownBrowser(b) && v != "" && len(v) <= 32 {
+		s.seenMu.Lock()
+		if s.seen == nil {
+			s.seen = map[string]Seen{}
+		}
+		s.seen[b] = Seen{Version: v, At: time.Now().UTC()}
+		s.seenMu.Unlock()
+	}
+	ext := s.Extensions
+	if ext == nil {
+		ext = map[string]string{}
+	}
+	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.DefaultDir,
+		CanReveal: s.Reveal != nil, CanIntegrate: s.Integrations != nil, Extensions: ext})
+}
+
+func (s *Server) integrations(w http.ResponseWriter, r *http.Request) {
+	if s.Integrations == nil {
+		writeErr(w, http.StatusNotImplemented, "browser integration is only available on the local daemon")
+		return
+	}
+	out := make([]Integration, 0, len(Browsers))
+	s.seenMu.Lock()
+	defer s.seenMu.Unlock()
+	for _, b := range Browsers {
+		it := Integration{ID: b, Bundled: s.Extensions[Family(b)]}
+		it.Installed, it.Folder = s.Integrations.Browser(b)
+		if v, ok := s.seen[b]; ok {
+			it.Seen = &v
+		}
+		out = append(out, it)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) integrationAct(fn func(Integrations, string) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.Integrations == nil {
+			writeErr(w, http.StatusNotImplemented, "browser integration is only available on the local daemon")
+			return
+		}
+		// Same rule as add: these launch programs, so refuse bodies a hostile page
+		// could send cross-origin without a preflight.
+		if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
+			writeErr(w, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+			return
+		}
+		id := r.PathValue("id")
+		if !knownBrowser(id) {
+			writeErr(w, 404, "unknown browser")
+			return
+		}
+		if err := fn(s.Integrations, id); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 func (s *Server) list(w http.ResponseWriter, r *http.Request) {
@@ -184,6 +307,15 @@ func (s *Server) add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 201, d)
+}
+
+func (s *Server) connections(w http.ResponseWriter, r *http.Request) {
+	c, err := s.Queue.Connections(r.PathValue("id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, 200, c)
 }
 
 func (s *Server) act(fn func(string) error) http.HandlerFunc {

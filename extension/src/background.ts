@@ -2,6 +2,7 @@ import {
   ensureLocal,
   ext,
   loadSettings,
+  localClient,
   remoteOf,
   report,
   scratch,
@@ -15,11 +16,32 @@ const CAPTURE_SCHEMES = ["http:", "https:", "ftp:"];
 // Settings are cached so the capture decision does not wait on storage: the
 // browser may finish a small file before we get to cancel it.
 let cached: Promise<Settings> | null = null;
-const settings = () => (cached ??= loadSettings());
+// Resolved copy for listeners that must decide synchronously (blocking webRequest).
+let current: Settings | null = null;
+const settings = () =>
+  (cached ??= loadSettings().then((s) => {
+    current = s;
+    return s;
+  }));
 ext.storage.onChanged.addListener(() => {
   cached = null;
+  void settings();
+
+// Tell a running ODM which extension version this browser has (shown in
+// Integrations). Never starts ODM: that would happen on every browser start.
+localClient()
+  .info()
+  .catch(() => {});
 });
 void settings();
+
+// URLs the webRequest path already handed to ODM; onCreated must not take them again.
+const taken = new Map<string, number>();
+function recentlyTaken(...urls: string[]): boolean {
+  const now = Date.now();
+  for (const [u, t] of taken) if (t < now) taken.delete(u);
+  return urls.some((u) => taken.has(u));
+}
 
 // URLs we deliberately gave back to the browser; the listener must not capture them again.
 const skip = new Map<string, number>();
@@ -53,16 +75,129 @@ async function buildRequest(url: string, referer?: string): Promise<DownloadRequ
 
 /** Stop the browser's own copy and remove whatever it already wrote. */
 async function takeFromBrowser(id: number) {
-  for (const step of [
-    () => ext.downloads.cancel(id),
-    () => ext.downloads.removeFile(id),
-    () => ext.downloads.erase({ id }),
-  ]) {
+  const steps: [string, () => Promise<unknown>][] = [
+    ["cancel", () => ext.downloads.cancel(id)],
+    ["removeFile", () => ext.downloads.removeFile(id)],
+    ["erase", () => ext.downloads.erase({ id })],
+  ];
+  const failed: string[] = [];
+  for (const [name, step] of steps) {
     try {
       await step();
-    } catch {
-      /* already finished, gone or nothing on disk yet */
+      console.log(`[ODM] takeFromBrowser #${id}: ${name} ok`);
+    } catch (e) {
+      // Often harmless (cancel on a finished item, removeFile with nothing on
+      // disk), but logged: swallowing these hid the Firefox double-download bug.
+      console.log(`[ODM] takeFromBrowser #${id}: ${name} failed: ${(e as Error)?.message ?? e}`);
+      failed.push(`${name}: ${(e as Error)?.message ?? e}`);
     }
+  }
+  return failed;
+}
+
+// Firefox only: blocking webRequest stops a download before the browser creates
+// it. downloads.onCreated fires too late there: a ~100 KB file is already saved
+// by the time cancel() runs, so both Firefox and ODM ended up with a copy.
+// Chrome MV3 has no blocking webRequest (and no permission for it), so
+// ext.webRequest is undefined there and Chrome keeps the onCreated path.
+
+// Types Firefox shows in the tab itself; anything else is saved as a file.
+function rendersInline(type: string): boolean {
+  if (!type) return true; // unknown: Firefox sniffs; leave it alone
+  if (/^(text|image|audio|video)\//.test(type)) return true;
+  return [
+    "application/pdf",
+    "application/json",
+    "application/xml",
+    "application/xhtml+xml",
+    "application/javascript",
+    "application/x-javascript",
+    "application/ecmascript",
+    "application/rss+xml",
+    "application/atom+xml",
+    "application/manifest+json",
+    "application/ld+json",
+    "multipart/x-mixed-replace",
+  ].includes(type);
+}
+
+type Header = { name: string; value?: string };
+const header = (hs: Header[] | undefined, name: string) =>
+  hs?.find((h) => h.name.toLowerCase() === name)?.value ?? "";
+
+function isDownloadResponse(hs: Header[] | undefined): boolean {
+  if (/^\s*attachment/i.test(header(hs, "content-disposition"))) return true;
+  const type = header(hs, "content-type").split(";")[0].trim().toLowerCase();
+  return !rendersInline(type);
+}
+
+interface HeadersDetails {
+  url: string;
+  method: string;
+  statusCode: number;
+  responseHeaders?: Header[];
+  originUrl?: string; // Firefox: page that started the request
+  documentUrl?: string;
+}
+
+type BlockingResponse = { cancel?: boolean };
+
+function onHeaders(d: HeadersDetails): BlockingResponse {
+  const s = current;
+  if (!s || !s.enabled) return {};
+  if (d.method !== "GET" || d.statusCode !== 200) return {}; // 3xx: wait for the final hop
+  if (isSkipped(d.url)) return {};
+  let scheme: string;
+  try {
+    scheme = new URL(d.url).protocol;
+  } catch {
+    return {};
+  }
+  if (!CAPTURE_SCHEMES.includes(scheme)) return {};
+  if (!isDownloadResponse(d.responseHeaders)) return {};
+  const len = Number(header(d.responseHeaders, "content-length"));
+  if (s.minSizeMB > 0 && len > 0 && len < s.minSizeMB * 1024 * 1024) return {};
+
+  taken.set(d.url, Date.now() + 10_000);
+  console.log(`[ODM] webRequest took ${d.url}`);
+  // Hand off after returning: starting ODM or opening the chooser takes time
+  // and the request must not hang meanwhile.
+  void (async () => {
+    try {
+      await handOff(await buildRequest(d.url, d.originUrl || d.documentUrl), s);
+    } catch (e) {
+      await report(false, `Capture error: ${(e as Error).message}`);
+    }
+  })();
+  return { cancel: true };
+}
+
+const webRequest = (ext as unknown as {
+  webRequest?: {
+    onHeadersReceived: {
+      addListener(
+        cb: (d: HeadersDetails) => BlockingResponse | Promise<BlockingResponse>,
+        filter: object,
+        extra: string[],
+      ): void;
+    };
+  };
+}).webRequest;
+if (webRequest?.onHeadersReceived) {
+  try {
+    webRequest.onHeadersReceived.addListener(
+      // The Firefox background page is suspended when idle; a click can wake it
+      // before settings are loaded. Firefox accepts a promise here, so wait for
+      // them instead of letting the browser have the file.
+      (d) => (current ? onHeaders(d) : settings().then(() => (current ? onHeaders(d) : {}), () => ({}))),
+      // Only page navigations: our own fetch() calls are xmlhttprequest and
+      // downloads.download() is "other", so neither can loop back here.
+      { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] },
+      ["blocking", "responseHeaders"],
+    );
+    console.log("[ODM] blocking webRequest capture active");
+  } catch (e) {
+    console.log(`[ODM] blocking webRequest unavailable: ${(e as Error).message}`);
   }
 }
 
@@ -113,6 +248,12 @@ ext.downloads.onCreated.addListener(async (item) => {
   try {
     const url = item.finalUrl || item.url;
     if (isSkipped(item.url, url)) return;
+    if (recentlyTaken(item.url, url)) {
+      // webRequest already cancelled and handed it off; if Firefox still made
+      // an item, just remove it.
+      await takeFromBrowser(item.id);
+      return;
+    }
     const s = await settings();
     if (!s.enabled) return;
     let scheme: string;
@@ -126,7 +267,13 @@ ext.downloads.onCreated.addListener(async (item) => {
 
     // Cancel first, before any network call; otherwise a small file is already
     // saved by the time ODM answers and you end up with two copies.
-    await takeFromBrowser(item.id);
+    console.log(`[ODM] onCreated #${item.id} state=${item.state} ${url}`);
+    const failed = await takeFromBrowser(item.id);
+    // cancel fails when the browser already finished; then only removeFile keeps
+    // us from leaving a second copy, so say so if that failed too.
+    if (failed.some((f) => f.startsWith("cancel")) && failed.some((f) => f.startsWith("removeFile"))) {
+      await report(false, `Browser kept its copy (${failed.join("; ")})`);
+    }
     await handOff(await buildRequest(url, item.referrer), s);
   } catch (e) {
     await report(false, `Capture error: ${(e as Error).message}`);

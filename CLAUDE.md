@@ -20,6 +20,8 @@ internal/store     SQLite (modernc, no cgo): downloads table, state as JSON
 internal/queue     scheduler, persistence, events, Remove(deleteFile)
 internal/api       REST + WebSocket server, Go client, auth/origin guards (api_test.go)
 internal/web       go:embed Web UI (static/index.html, single file, VS Code / qBittorrent look)
+internal/extbundle go:embed of the extensions: files/chrome (copied by `pnpm build`, gitignored) and
+                   files/odm-firefox.xpi (AMO-signed unlisted, committed: needs the owner's keys to rebuild)
 extension/         shared TS built twice (dist/chrome, dist/firefox); MV3
 ```
 - **Local mode** (`odm serve --local`, the tray app): listens on 127.0.0.1:6800, **no token**. Protection is
@@ -34,15 +36,23 @@ extension/         shared TS built twice (dist/chrome, dist/firefox); MV3
   host `odm_host` (HKCU keys for Chrome, Edge, Firefox; manifests in `%APPDATA%\odm\native`) on every tray start.
   Browsers start it as `odm.exe <origin>` / `odm.exe <manifest.json> <id>`; `isNativeHostLaunch()` detects that
   before cobra runs. stdout carries only length-prefixed JSON frames.
+- Extensions are installed **from odm.exe** (menu Integrations > Browser Extensions, `/v1/integrations`, local
+  daemon only), never from a store, so the extension version follows the exe. Firefox: the embedded signed xpi is
+  opened with firefox.exe (no `update_url`, so Firefox never auto-updates it). Chrome/Edge: "Load unpacked" from
+  `%APPDATA%\odm\extension\chrome`, which the tray refreshes in place on every start. Extensions report their
+  version as `GET /v1/info?ext=<browser>/<version>` (query param on purpose: a new header would change CORS).
+  The version lives only in `extension/package.json`; `build.mjs` writes it into both manifests.
 - Chrome extension id is pinned by the `key` in `extension/manifest.chrome.json` and must equal
   `chromeExtensionID` in `cmd/odm/native_windows.go`. Firefox id: `odm@open-download-manager.local`.
 
 ## Commands
 ```
-go build -o odm.exe ./cmd/odm
+go build -o odm.exe ./cmd/odm               # build the extension first, or it is "not bundled"
 go vet ./... && go test ./...                 # api, engine, queue, native host
 GOOS=linux go vet ./cmd/...                   # keep non-windows building
-cd extension && pnpm install && pnpm build    # -> extension/dist/{chrome,firefox}
+cd extension && pnpm install && pnpm build    # -> extension/dist/{chrome,firefox} + internal/extbundle/files/chrome
+cd extension && pnpm sign                     # AMO keys from env or root .env (MOZILLA_JWT_ISSUER/KEY, gitignored);
+                                              # uploads to Mozilla, version is burned: bump package.json first
 cd extension && pnpm typecheck
 cd extension && pnpm dlx web-ext lint -s dist/firefox
 ```

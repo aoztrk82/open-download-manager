@@ -33,6 +33,27 @@ type State struct {
 	Filename     string    `json:"filename"`
 	Path         string    `json:"path,omitempty"` // .part while running, final file when done
 	Segments     []Segment `json:"segments"`
+	// Conns is the live state of each segment's connection, index-aligned with
+	// Segments. Only meaningful while Run is going; never persisted.
+	Conns []Conn `json:"-"`
+}
+
+// Connection states shown in the UI.
+const (
+	ConnWaiting    = "waiting"    // not started yet
+	ConnConnecting = "connecting" // opening the request
+	ConnActive     = "active"     // receiving data
+	ConnRetrying   = "retrying"   // failed, waiting for the next attempt
+	ConnDone       = "done"       // its byte range is complete
+	ConnStopped    = "stopped"    // cancelled (pause, shutdown, sibling error)
+	ConnFailed     = "failed"     // gave up after all retries
+)
+
+// Conn is the live view of one segment's connection.
+type Conn struct {
+	State   string `json:"state"`
+	Retries int    `json:"retries"`
+	Error   string `json:"error,omitempty"`
 }
 
 // Downloaded returns the total bytes written so far.
@@ -130,11 +151,19 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 	}
 
 	var mu sync.Mutex
+	st.Conns = make([]Conn, len(st.Segments))
+	for i, sg := range st.Segments {
+		st.Conns[i].State = ConnWaiting
+		if sg.End >= 0 && sg.Start+sg.Done >= sg.End {
+			st.Conns[i].State = ConnDone
+		}
+	}
 	snapshot := func() State {
 		mu.Lock()
 		defer mu.Unlock()
 		c := *st
 		c.Segments = append([]Segment(nil), st.Segments...)
+		c.Conns = append([]Conn(nil), st.Conns...)
 		return c
 	}
 
@@ -234,12 +263,28 @@ func plan(info proto.Info, o Options) []Segment {
 func (e *Engine) runSegment(ctx context.Context, src proto.Source, o Options, f *os.File,
 	st *State, i int, mu *sync.Mutex, lim *rate.Limiter) error {
 
+	setConn := func(state string, err error) {
+		mu.Lock()
+		c := &st.Conns[i]
+		c.State = state
+		if err != nil {
+			c.Error = err.Error()
+		} else if state == ConnActive || state == ConnDone {
+			c.Error = ""
+		}
+		mu.Unlock()
+	}
 	buf := make([]byte, 64<<10)
 	var lastErr error
 	for attempt := 0; attempt <= o.Retries; attempt++ {
 		if attempt > 0 {
+			mu.Lock()
+			st.Conns[i].Retries = attempt
+			mu.Unlock()
+			setConn(ConnRetrying, lastErr)
 			select {
 			case <-ctx.Done():
+				setConn(ConnStopped, nil)
 				return ctx.Err()
 			case <-time.After(backoff(attempt)):
 			}
@@ -248,30 +293,37 @@ func (e *Engine) runSegment(ctx context.Context, src proto.Source, o Options, f 
 		sg := st.Segments[i]
 		mu.Unlock()
 		if sg.End >= 0 && sg.Start+sg.Done >= sg.End {
+			setConn(ConnDone, nil)
 			return nil
 		}
 		length := int64(-1)
 		if sg.End >= 0 && st.AcceptRanges {
 			length = sg.End - sg.Start - sg.Done
 		}
+		setConn(ConnConnecting, nil)
 		rc, err := src.Open(ctx, o.Req, sg.Start+sg.Done, length)
 		if err != nil {
 			lastErr = err
 			if ctx.Err() != nil {
+				setConn(ConnStopped, nil)
 				return ctx.Err()
 			}
 			continue
 		}
+		setConn(ConnActive, nil)
 		err = copySegment(ctx, rc, f, st, i, mu, lim, buf)
 		rc.Close()
 		if err == nil {
+			setConn(ConnDone, nil)
 			return nil
 		}
 		lastErr = err
 		if ctx.Err() != nil {
+			setConn(ConnStopped, nil)
 			return ctx.Err()
 		}
 	}
+	setConn(ConnFailed, lastErr)
 	return fmt.Errorf("segment %d: %w", i, lastErr)
 }
 

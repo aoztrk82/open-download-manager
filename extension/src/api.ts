@@ -8,6 +8,32 @@ export const ext: typeof chrome =
   (globalThis as unknown as { browser?: typeof chrome }).browser ?? chrome;
 
 export const LOCAL_URL = "http://127.0.0.1:6800";
+
+/** Which browser family this build runs in; Edge uses the Chrome build. */
+export function browserId(): "firefox" | "chrome" | "edge" {
+  if (ext.runtime.getURL("").startsWith("moz-extension:")) return "firefox";
+  return / Edg\//.test(navigator.userAgent) ? "edge" : "chrome";
+}
+export const extVersion = () => ext.runtime.getManifest().version;
+
+export interface Info {
+  version: string;
+  defaultDir: string;
+  /** Extension versions bundled in odm.exe by family; missing on older daemons. */
+  extensions?: Record<string, string>;
+}
+
+/**
+ * The extension is installed from odm.exe (ODM > Integrations), so its version
+ * should match the one ODM bundles. Returns a warning when it does not.
+ */
+export function versionWarning(info: Info): string {
+  const fam = browserId() === "firefox" ? "firefox" : "chrome";
+  const bundled = info.extensions?.[fam];
+  if (!bundled || bundled === extVersion()) return "";
+  return `Extension ${extVersion()} does not match ODM ${info.version} (bundles ${bundled}). ` +
+    "Update it from ODM: Integrations > Browser Extensions.";
+}
 export const NATIVE_HOST = "odm_host"; // registered by odm.exe on its first run
 
 export interface Settings {
@@ -86,7 +112,10 @@ export class OdmClient {
     return r.status === 204 ? (undefined as T) : ((await r.json()) as T);
   }
 
-  info() { return this.call<{ version: string; defaultDir: string }>("GET", "/info"); }
+  // ?ext= lets ODM show which extension version each browser runs.
+  info() {
+    return this.call<Info>("GET", `/info?ext=${encodeURIComponent(`${browserId()}/${extVersion()}`)}`);
+  }
   list() { return this.call<Download[]>("GET", "/downloads"); }
   add(request: DownloadRequest, filename?: string) {
     return this.call<Download>("POST", "/downloads", { request, filename });
