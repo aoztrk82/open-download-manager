@@ -302,7 +302,10 @@ const store = { get:k => { try { return localStorage.getItem(k); } catch { retur
 
 /* ---------- i18n ---------- */
 // Strings live in i18n.js. Default: saved choice, else the browser/OS language.
-let lang = store.get("odm.lang") || (navigator.language || "en").slice(0, 2).toLowerCase();
+// The desktop window passes the program's language as #lang=xx; on the local
+// daemon /v1/info.lang is the source of truth too (shared with the tray).
+const hashLang = (location.hash.match(/lang=([a-z]{2})/) || [])[1];
+let lang = hashLang || store.get("odm.lang") || (navigator.language || "en").slice(0, 2).toLowerCase();
 if (!I18N[lang]) lang = "en";
 const t = (k, v = {}) => String(I18N[lang][k] ?? I18N.en[k] ?? k).replace(/\{(\w+)\}/g, (_, n) => v[n] ?? "");
 function applyI18n() {
@@ -312,9 +315,11 @@ function applyI18n() {
   $$("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
   $$(".item.lang").forEach(el => el.classList.toggle("on", el.dataset.lang === lang));
 }
-function setLang(l) {
+function setLang(l, save = true) {
   if (!I18N[l]) return;
   lang = l; store.set("odm.lang", l);
+  // Local daemon: make it the program's language (window, tray, next start).
+  if (save && info && info.lang) api("/prefs", { method:"PUT", body:JSON.stringify({ lang:l }) }).catch(() => {});
   applyI18n(); setConn(); render();
   if (info) $("s-dir").textContent = dirLabel();
 }
@@ -322,7 +327,8 @@ function setLang(l) {
 /* ---------- auth / api ---------- */
 // The desktop app opens us as /#token=...; move it out of the URL.
 const m = location.hash.match(/token=([0-9a-f]+)/);
-if (m) { store.set("odm.token", m[1]); history.replaceState(null, "", location.pathname); }
+if (m) store.set("odm.token", m[1]);
+if (location.hash) history.replaceState(null, "", location.pathname);
 let token = store.get("odm.token") || "";
 let info = null, online = false;
 
@@ -858,7 +864,10 @@ async function start() {
   if (dh) $("details").style.height = clamp(dh, 90, innerHeight * .7) + "px";
   applyCols();
   syncChecks(); setConn(); render();
-  try { info = await api("/info"); $("s-dir").textContent = dirLabel(); applyInfo(); } catch { /* promptToken shown on 401 */ }
+  try {
+    info = await api("/info"); $("s-dir").textContent = dirLabel(); applyInfo();
+    if (info.lang && info.lang !== lang) setLang(info.lang, false);
+  } catch { /* promptToken shown on 401 */ }
   refresh(); setInterval(refresh, 1000);
 }
 start();

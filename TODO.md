@@ -51,8 +51,11 @@ Still open: deduplication guard on the ODM side (same URL added twice within a f
 - [ ] Popup and settings page look (light and dark), language switch.
 - [ ] Web UI in Turkish: menus, sidebar icons, statuses, dialogs; uppercase sidebar headings show "İ".
 - [ ] Tray menu in Turkish; tray, window and taskbar icons.
-- [ ] Exe icon in Explorer: in `cmd/odm` run `go run github.com/tc-hib/go-winres@v0.3.3 simply --icon assets/odm.ico`
-      (writes `rsrc_windows_*.syso`), check `--manifest` does not change DPI behavior, commit the .syso.
+- [x] Exe icon: owner generated `cmd/odm/rsrc_windows_*.syso` with go-winres (2026-11-12).
+- [ ] Check the go-winres default manifest did not change window DPI/sharpness; regenerate after icon changes:
+      in `cmd/odm` run `go run github.com/tc-hib/go-winres@v0.3.3 simply --icon assets/odm.ico`.
+- [ ] Program language: Turkish by default on this PC (regional format tr-TR), View menu switch also renames the
+      tray menu without restart.
 
 ## 3. Verify (written but never run against the real thing)
 - [ ] Tray "Quit ODM" closes an open window within ~3 s (window pings the daemon, `runWindow` in `gui_windows.go`).

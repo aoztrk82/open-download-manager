@@ -43,6 +43,8 @@ type Server struct {
 	// PickFolder shows a native folder chooser and returns the choice ("" if
 	// cancelled). Local daemon only.
 	PickFolder func(initial string) (string, error)
+	// Lang is the shared UI language (local daemon only).
+	Lang LangPref
 
 	seenMu sync.Mutex
 	seen   map[string]Seen
@@ -55,7 +57,8 @@ type Info struct {
 	CanReveal    bool              `json:"canReveal"`
 	CanIntegrate bool              `json:"canIntegrate"`
 	CanPickDir   bool              `json:"canPickFolder"`
-	AnyDir       bool              `json:"anyFolder"` // false: folders must be inside defaultDir
+	AnyDir       bool              `json:"anyFolder"`      // false: folders must be inside defaultDir
+	Lang         string            `json:"lang,omitempty"` // local daemon: the program's UI language
 	Extensions   map[string]string `json:"extensions"`
 }
 
@@ -112,6 +115,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/downloads", s.add)
 	mux.HandleFunc("POST /v1/probe", s.probe)
 	mux.HandleFunc("POST /v1/pickfolder", s.pickFolder)
+	mux.HandleFunc("PUT /v1/prefs", s.setPrefs)
 	mux.HandleFunc("GET /v1/downloads/{id}", s.get)
 	mux.HandleFunc("GET /v1/downloads/{id}/connections", s.connections)
 	mux.HandleFunc("POST /v1/downloads/{id}/pause", s.act(s.Queue.Pause))
@@ -200,7 +204,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", o)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -226,7 +230,11 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 	if ext == nil {
 		ext = map[string]string{}
 	}
-	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.DefaultDir,
+	lang := ""
+	if s.Lang != nil {
+		lang = s.Lang.Lang()
+	}
+	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.DefaultDir, Lang: lang,
 		CanReveal: s.Reveal != nil, CanIntegrate: s.Integrations != nil, CanPickDir: s.PickFolder != nil,
 		AnyDir: s.AnyDir, Extensions: ext})
 }

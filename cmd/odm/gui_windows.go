@@ -79,7 +79,16 @@ func runTray(background bool) error {
 		}
 		return spawnSelf("window")
 	}
-	d, err := startDaemon(daemonOpts{Addr: "127.0.0.1:" + strconv.Itoa(config.DefaultPort), Reveal: true})
+	trayLang.Store(progLang{}.Lang())
+	langCh := make(chan string, 1)
+	d, err := startDaemon(daemonOpts{Addr: "127.0.0.1:" + strconv.Itoa(config.DefaultPort), Reveal: true,
+		OnLang: func(l string) {
+			select { // keep only the newest change
+			case <-langCh:
+			default:
+			}
+			langCh <- l
+		}})
 	if err != nil {
 		return err
 	}
@@ -113,6 +122,14 @@ func runTray(background bool) error {
 							auto.Check()
 						}
 					}
+				case l := <-langCh:
+					trayLang.Store(l)
+					open.SetTitle(trayText("open"))
+					open.SetTooltip(trayText("openTip"))
+					folder.SetTitle(trayText("folder"))
+					auto.SetTitle(trayText("autostart"))
+					quit.SetTitle(trayText("quit"))
+					quit.SetTooltip(trayText("quitTip"))
 				case <-quit.ClickedCh:
 					systray.Quit()
 					return
@@ -163,7 +180,9 @@ func runWindow() error {
 	}
 	cl := localClient()
 	cl.HTTP.Timeout = 2 * time.Second
-	url := cl.Base + "/"
+	// The program's language goes in the URL so the first paint is already in
+	// it (the Web UI would otherwise start in WebView2's language and switch).
+	url := cl.Base + "/#lang=" + progLang{}.Lang()
 
 	runtime.LockOSThread()
 	// Without this Windows bitmap-scales the window (blurry, mis-centered) on

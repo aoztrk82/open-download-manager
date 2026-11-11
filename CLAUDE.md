@@ -64,8 +64,10 @@ Web UI has no build step; check syntax by extracting the `<script>` and running 
 - **Two languages, English and Turkish.** Web UI strings live in `internal/web/static/i18n.js` (`t("key")`,
   `data-i18n*` attributes; View menu picks the language). Extension strings live in `extension/src/i18n.ts`
   (setting "language", default = browser language); manifest name/description in `extension/_locales`.
-  Tray menu follows the Windows display language (`cmd/odm/lang_windows.go`). Never hard-code UI text: add the
-  key to every language and run `node scripts/i18n-check.mjs`.
+  The program (window + Web UI on the local daemon + tray) has **one** language: `prefs.json` in the config dir
+  (`internal/config/prefs.go`), default = Turkish if the Windows display language *or* regional format is
+  Turkish (`systemLang`), changed via View menu -> `PUT /v1/prefs`, tray retitles live. The window passes it as
+  `#lang=xx`. Never hard-code UI text: add the key to every language and run `node scripts/i18n-check.mjs`.
 - Extension pages build DOM with `h()` / `setText()` from `i18n.ts`, not `innerHTML` (AMO lint warns on it).
 - Download dialog (`extension/static/download.html`): shown before every captured download unless the
   "askBeforeDownload" setting is off; name, size (browser hints, else `POST /v1/probe`), this computer or the

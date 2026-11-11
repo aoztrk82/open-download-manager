@@ -24,7 +24,8 @@ type daemonOpts struct {
 	Connections int
 	RateLimit   int64
 	NoUI        bool
-	Reveal      bool // allow "show in folder" (local daemon only)
+	Reveal      bool              // allow "show in folder" (local daemon only)
+	OnLang      func(lang string) // tray: the UI language was changed in the window
 }
 
 // daemon is a running queue + HTTP API. Shared by `odm serve` and the tray app.
@@ -66,6 +67,7 @@ func startDaemon(o daemonOpts) (*daemon, error) {
 		srv.Integrations = newIntegrations()
 		srv.AnyDir = true
 		srv.PickFolder = pickFolder
+		srv.Lang = progLang{onChange: o.OnLang}
 	}
 	ln, err := net.Listen("tcp", o.Addr)
 	if err != nil {

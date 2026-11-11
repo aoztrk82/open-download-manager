@@ -2,6 +2,12 @@
 
 Newest first. Commit hashes refer to `git log`.
 
+## 2026-11-12 - fifth session
+- Owner saw the program in English: Windows display language is en-US, regional format tr-TR, and the window
+  took WebView2's language. Now the program has one shared language (`prefs.json`, `PUT /v1/prefs`,
+  `info.lang`), defaulting to Turkish when the display language or the regional format is Turkish; choosing a
+  language in the window also switches the tray menu live.
+
 ## 2026-11-11 - fourth session (owner away; nothing was opened on screen)
 - Icons: one generator (`tools/genicons`) draws the logo (blue rounded square, down arrow over a 4-part bar =
   parallel connections) for the extension (16-128), Web UI favicon/brand, tray `.ico` and the window/taskbar icon

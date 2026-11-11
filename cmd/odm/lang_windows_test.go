@@ -12,7 +12,15 @@ func TestTrayStringsParity(t *testing.T) {
 			}
 		}
 	}
-	if l := uiLang(); trayStrings[l] == nil {
-		t.Fatalf("uiLang() = %q has no strings", l)
+	if l := systemLang(); trayStrings[l] == nil {
+		t.Fatalf("systemLang() = %q has no strings", l)
+	}
+	trayLang.Store("tr")
+	if trayText("quit") != "ODM'den Çık" {
+		t.Fatal("tray does not follow trayLang")
+	}
+	trayLang.Store("xx")
+	if trayText("quit") != "Quit ODM" {
+		t.Fatal("unknown language must fall back to English")
 	}
 }
