@@ -50,7 +50,7 @@ export const ytFormat = (h: number) =>
 // Sites whose videos are streamed in pieces (MSE) that yt-dlp understands.
 // Elsewhere the yt-dlp entries only show when nothing else was found.
 const YTDLP_HOSTS =
-  /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com|vimeo\.com|dailymotion\.com|twitch\.tv|kick\.com|x\.com|twitter\.com|instagram\.com|tiktok\.com|facebook\.com|reddit\.com|soundcloud\.com|bandcamp\.com|mixcloud\.com|bilibili\.com|rumble\.com|odysee\.com|streamable\.com|ted\.com|vk\.com|ok\.ru|nicovideo\.jp|bitchute\.com)$/i;
+  /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com|vimeo\.com|dailymotion\.com|twitch\.tv|kick\.com|x\.com|twitter\.com|instagram\.com|tiktok\.com|facebook\.com|reddit\.com|soundcloud\.com|bandcamp\.com|mixcloud\.com|bilibili\.com|rumble\.com|odysee\.com|streamable\.com|ted\.com|vk\.com|ok\.ru|mail\.ru|nicovideo\.jp|bitchute\.com)$/i;
 export const isYtdlpSite = (host: string) => YTDLP_HOSTS.test(host);
 
 /** A page title without the site's suffix and YouTube's "(3) " unread counter. */
@@ -215,6 +215,9 @@ export function toSource(s: RawSource, base: string): VideoSource | null {
   } catch {
     return null;
   }
+  // <video src=""> reports the page itself as its source (mail.ru): a page is
+  // never the file, and downloading it only saves HTML.
+  if (url.split("#")[0] === base.split("#")[0]) return null;
   const kind = mediaKind(url, s.type);
   if (!kind) return null;
   return { url, label: sourceLabel({ ...s, url }), kind, height: heightOf({ ...s, url }) };
@@ -351,6 +354,8 @@ export interface CaptureRules {
   skipSites?: string[];
   useCategories?: boolean;
   categories?: { id: string; exts: string[]; dir: string }[];
+  /** ODM keeps a download log: the extension adds its decisions to it (POST /v1/log). */
+  log?: boolean;
   /** Where each category's files go now (its own folder or one inside the download folder). */
   categoryDirs?: Record<string, string>;
 }

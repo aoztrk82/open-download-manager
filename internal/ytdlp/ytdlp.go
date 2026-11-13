@@ -51,6 +51,11 @@ func Find() (string, error) {
 		if p := filepath.Join(filepath.Dir(self), exe("yt-dlp")); isFile(p) {
 			return p, nil
 		}
+		// A development build in the repo root: scripts/fetch-tools.ps1 puts it
+		// in dist\yt-dlp (with qjs.exe beside it).
+		if p := filepath.Join(filepath.Dir(self), "dist", "yt-dlp", exe("yt-dlp")); isFile(p) {
+			return p, nil
+		}
 	}
 	if p, err := exec.LookPath("yt-dlp"); err == nil {
 		return p, nil

@@ -48,6 +48,9 @@ type Info struct {
 	AcceptRanges bool  // true if Open can start at an arbitrary offset
 	Filename     string
 	FinalURL     string
+	// For the log: what the server said ("206 Partial Content", "text/html").
+	Status      string
+	ContentType string
 }
 
 // Source is implemented once per protocol family.

@@ -410,7 +410,8 @@ function rawFromVideo(v: HTMLVideoElement): RawSource[] {
     });
   });
   // Last, so a labelled <source> with the same URL keeps its nicer label.
-  const cur = v.currentSrc || v.src;
+  // v.src of an empty src="" attribute is the page address, not a video.
+  const cur = v.currentSrc || (v.getAttribute("src") ? v.src : "");
   if (cur) out.push({ url: cur, height: v.videoHeight || undefined, width: v.videoWidth || undefined });
   return out;
 }
@@ -521,11 +522,26 @@ function openMenu() {
 
 let shown = 0; // sources in the menu right now
 
+let lastOffered = "";
 function render(v: HTMLVideoElement, groups: VideoGroup[]) {
   const menu = ui!.menu;
   menu.replaceChildren();
   sizeEls = new Map();
   shown = groups.flatMap((g) => g.sources).length;
+  // ODM's log (when on): what the menu offered for this video. Once per
+  // distinct menu: it re-renders when the page's own config arrives.
+  const offered =
+    groups.map((g) => `${g.title}: ${g.sources.map((s) => `${s.kind} ${s.label} ${s.url.slice(0, 200)}`).join(" | ")}`).join(" || ") || "nothing";
+  if (offered !== lastOffered) {
+    lastOffered = offered;
+    void ext.runtime
+      .sendMessage({
+        type: "odm-log",
+        text: "video menu",
+        fields: { page: location.href, videoSrc: (v.currentSrc || v.getAttribute("src") || "").slice(0, 300), offered },
+      })
+      .catch(() => {});
+  }
   if (!groups.length) {
     const mse = (v.currentSrc || "").startsWith("blob:");
     menu.append(el("div", "note", mse ? t("vid.mse") : t("vid.none")));

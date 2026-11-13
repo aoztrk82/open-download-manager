@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aoztrk82/open-download-manager/internal/api"
+	"github.com/aoztrk82/open-download-manager/internal/applog"
 	"github.com/aoztrk82/open-download-manager/internal/config"
 	"github.com/aoztrk82/open-download-manager/internal/engine"
 	"github.com/aoztrk82/open-download-manager/internal/extbundle"
@@ -66,6 +67,15 @@ func startDaemon(o daemonOpts) (*daemon, error) {
 		sets = newSettingsStore(fo)
 		qcfg = sets.queueConfig(sets.Settings())
 	}
+	// The download log: Settings > General on the local daemon; always on for a
+	// server (its operator reads it on the machine).
+	logOn := true
+	if sets != nil {
+		logOn = sets.Settings().Log
+	}
+	applog.Setup(filepath.Join(cfgDir, "logs"), logOn)
+	applog.L().Info("odm started", "version", api.Version, "addr", o.Addr, "local", o.Reveal)
+	qcfg.Log = applog.L()
 	q := queue.New(qcfg, st, engine.New())
 	if sets != nil {
 		sets.q = q

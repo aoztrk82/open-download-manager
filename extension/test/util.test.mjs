@@ -259,3 +259,11 @@ test("capture rules from ODM's Settings", () => {
   assert.equal(categoryDir(cats, "", true), "D:\\Video"); // a stream becomes an MP4
   assert.equal(categoryDir({ ...cats, useCategories: false }, "film.mkv"), "");
 });
+test("a <video src=\"\"> page address is never a source (mail.ru)", () => {
+  const page = "https://my.mail.ru/mail/u/video/_myvideo/449.html?from=videoplayer";
+  assert.equal(toSource({ url: page }, page), null);
+  assert.equal(toSource({ url: page + "#t=5" }, page), null);
+  assert.equal(toSource({ url: "" }, page), null); // resolves to the page itself
+  assert.ok(toSource({ url: "https://cdn.mail.ru/v/1.mp4" }, page));
+  assert.ok(isYtdlpSite("my.mail.ru"));
+});

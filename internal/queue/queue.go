@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"net/url"
 	"os"
 	"path"
@@ -47,6 +48,8 @@ type Config struct {
 	DirFor func(name string, media bool) string
 	// ConnectionsFor overrides Connections per host (Settings > exceptions).
 	ConnectionsFor func(host string) int
+	// Log is the download log (applog); nil = none.
+	Log *slog.Logger
 }
 
 type Manager struct {
@@ -182,7 +185,15 @@ func (m *Manager) Probe(ctx context.Context, req proto.Request) (proto.Info, err
 
 func (m *Manager) Get(id string) (*store.Download, error) { return m.store.Get(id) }
 
+func (m *Manager) log() *slog.Logger {
+	if l := m.config().Log; l != nil {
+		return l
+	}
+	return slog.New(slog.DiscardHandler)
+}
+
 func (m *Manager) Pause(id string) error {
+	m.log().Info("pause", "id", id)
 	m.mu.Lock()
 	cancel, running := m.active[id]
 	m.mu.Unlock()
@@ -203,6 +214,7 @@ func (m *Manager) Resume(id string) error {
 	if d.Status == store.Completed || d.Status == store.Active {
 		return nil
 	}
+	m.log().Info("resume", "id", id, "was", d.Status)
 	d.Status, d.Error = store.Queued, ""
 	if err := m.save(d); err != nil {
 		return err
@@ -226,6 +238,7 @@ func (m *Manager) Remove(id string, deleteFile bool) error {
 	if err := m.store.Delete(id); err != nil {
 		return err
 	}
+	m.log().Info("removed", "id", id, "deleteFile", deleteFile, "status", d.Status)
 	m.publish(Event{Type: "removed", ID: id})
 	if deleteFile && d.State.Path != "" {
 		go removeFile(d.State.Path)
@@ -348,9 +361,21 @@ func (m *Manager) run(ctx context.Context, d *store.Download) {
 			conns = cfg.ConnectionsFor(u.Hostname())
 		}
 	}
+	lg := cfg.Log
+	if lg == nil {
+		lg = slog.New(slog.DiscardHandler)
+	}
+	lg = lg.With("id", d.ID)
+	kind := "file"
+	if d.Req.Media != nil {
+		kind = d.Req.Media.Kind
+	}
+	started, from := time.Now(), d.State.Downloaded()
+	lg.Info("start", "url", d.Req.URL, "kind", kind, "name", d.Filename, "dir", d.Dir, "resumeAt", from,
+		"maxConns", conns, "rateLimit", cfg.RateLimit)
 	err := m.engine.Run(ctx, &st, engine.Options{
 		Req: d.Req, Dir: d.Dir, Filename: d.Filename,
-		Connections: conns, RateLimit: cfg.RateLimit, Shared: cfg.Shared,
+		Connections: conns, RateLimit: cfg.RateLimit, Shared: cfg.Shared, Log: lg,
 	}, func(s engine.State) {
 		d.Size, d.Downloaded = s.Size, s.Downloaded()
 		if d.Filename == "" {
@@ -385,6 +410,16 @@ func (m *Manager) run(ctx context.Context, d *store.Download) {
 		d.Status = store.Paused
 	default:
 		d.Status, d.Error = store.Failed, err.Error()
+	}
+	secs := time.Since(started).Seconds()
+	switch d.Status {
+	case store.Completed:
+		lg.Info("completed", "size", d.Size, "path", d.Path, "secs", int(secs),
+			"avgKiBs", int(float64(d.Downloaded-from)/1024/max(secs, 0.001)))
+	case store.Failed:
+		lg.Warn("failed", "err", d.Error, "downloaded", d.Downloaded, "secs", int(secs))
+	default:
+		lg.Info(string(d.Status), "downloaded", d.Downloaded)
 	}
 	_ = m.save(d)
 }

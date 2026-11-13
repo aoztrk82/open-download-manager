@@ -15,6 +15,7 @@ import (
 func runYtdlp(ctx context.Context, st *State, o Options, onProgress func(State)) error {
 	path, err := ytdlp.Find()
 	if err != nil {
+		o.log().Warn("yt-dlp not found", "err", err)
 		return err
 	}
 	if err := os.MkdirAll(o.Dir, 0o755); err != nil {
@@ -37,6 +38,8 @@ func runYtdlp(ctx context.Context, st *State, o Options, onProgress func(State))
 		defer mu.Unlock()
 		return st.Clone()
 	}
+	o.log().Info("yt-dlp", "exe", path, "format", o.Req.Media.Format, "container", o.Req.Media.Container,
+		"name", o.Filename, "rateLimit", o.RateLimit)
 	var last time.Time
 	file, err := ytdlp.Download(ctx, path, ytdlp.Options{
 		URL: o.Req.URL, Format: o.Req.Media.Format, Container: o.Req.Media.Container,
@@ -60,6 +63,7 @@ func runYtdlp(ctx context.Context, st *State, o Options, onProgress func(State))
 		onProgress(snapshot())
 	}
 	if err != nil {
+		o.log().Warn("yt-dlp failed", "err", err)
 		return err
 	}
 	fi, err := os.Stat(file)

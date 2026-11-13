@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aoztrk82/open-download-manager/internal/applog"
 	"github.com/aoztrk82/open-download-manager/internal/proto"
 )
 
@@ -76,9 +77,12 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	info, err := s.Queue.Probe(ctx, body.Request)
 	if err != nil {
+		applog.L().Warn("dialog probe failed", "from", clientOf(r), "url", body.Request.URL, "err", err)
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	applog.L().Info("dialog probe", "from", clientOf(r), "url", body.Request.URL, "status", info.Status,
+		"type", info.ContentType, "size", info.Size, "ranges", info.AcceptRanges, "name", info.Filename)
 	writeJSON(w, 200, ProbeResult{Size: info.Size, AcceptRanges: info.AcceptRanges, Filename: info.Filename})
 }
 

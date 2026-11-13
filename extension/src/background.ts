@@ -75,6 +75,18 @@ async function freshRules(): Promise<CaptureRules | null> {
 }
 void freshRules();
 
+/**
+ * A line in ODM's download log, when ODM keeps one: what the extension saw and
+ * decided, so "it did nothing" or "it saved a web page" can be traced later.
+ * Fire and forget; never starts ODM.
+ */
+function odmLog(msg: string, fields: Record<string, unknown>) {
+  if (!rules?.log) return;
+  void localClient()
+    .log(msg, { browser: browserId(), ...fields })
+    .catch(() => {});
+}
+
 // URLs the webRequest path already handed to ODM; onCreated must not take them again.
 const taken = new Map<string, number>();
 function recentlyTaken(...urls: string[]): boolean {
@@ -211,6 +223,7 @@ function onHeaders(d: HeadersDetails): BlockingResponse | Promise<BlockingRespon
 
   const decide = (r: CaptureRules | null): BlockingResponse => {
     const how = captureDecision(r, browserId(), d.url, page, hints.filename || nameFromUrl(d.url), hints.mime);
+    odmLog("capture", { via: "webRequest", decision: how, url: d.url, page, name: hints.filename, mime: hints.mime, size: hints.size });
     if (how === "browser") return {};
     taken.set(d.url, Date.now() + 10_000);
     console.log(`[ODM] webRequest took ${d.url} (${how})`);
@@ -265,6 +278,7 @@ if (webRequest?.onHeadersReceived) {
 async function handOff(req: DownloadRequest, hints: Hints, s: Settings, auto = false) {
   // auto: ODM's Settings say this type or site starts without asking.
   if (s.askBeforeDownload && !auto) {
+    odmLog("dialog opened", { url: req.url, kind: req.media?.kind ?? "file" });
     await openDialog(req, hints);
     return;
   }
@@ -273,6 +287,7 @@ async function handOff(req: DownloadRequest, hints: Hints, s: Settings, auto = f
     await (await clientFor(target, s)).add(req, { filename: hints.filename });
     await report(true, t("bg.sent", { where: targetName(target, s), url: req.url }));
   } catch (e) {
+    odmLog("hand-off failed", { url: req.url, target, auto, err: (e as Error).message });
     // A stream cannot go back to the browser: it would only save the playlist.
     if (target === "remote" || req.media) {
       await report(false, (e as Error).message);
@@ -332,6 +347,7 @@ ext.downloads.onCreated.addListener(async (item) => {
     if (s.minSizeMB > 0 && size > 0 && size < s.minSizeMB * 1024 * 1024) return;
     const name = baseName(item.filename) || nameFromUrl(url);
     const how = captureDecision(await freshRules(), browserId(), url, item.referrer, name, item.mime);
+    odmLog("capture", { via: "downloads", decision: how, url, page: item.referrer, name, mime: item.mime, size });
     if (how === "browser") return;
 
     // Cancel first, before any network call; otherwise a small file is already
@@ -385,6 +401,8 @@ interface Message {
   media?: string; // "hls" | "ytdlp"
   playlist?: string;
   format?: string; // yt-dlp format selector
+  text?: string; // odm-log
+  fields?: unknown;
 }
 
 ext.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
@@ -418,9 +436,15 @@ ext.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
           req.media = { kind: "ytdlp", format, container: "mp4" };
           hints.resumable = true; // yt-dlp continues its .part files
         }
+        odmLog("video menu pick", { kind: msg.media ?? "file", url, page: msg.referer, name: hints.filename, format: msg.format, size: hints.size });
         await handOff(req, hints, await settings());
       })(),
     );
+  }
+  // The video menu's contents (content.ts), so the log shows what was offered.
+  if (msg?.type === "odm-log" && typeof msg.text === "string") {
+    odmLog(msg.text.slice(0, 80), (msg.fields ?? {}) as Record<string, unknown>);
+    return false;
   }
   if (msg?.type === "odm-video-sizes" && Array.isArray(msg.urls)) {
     const urls = msg.urls.filter((u) => typeof u === "string" && /^https?:/i.test(u)).slice(0, 20);

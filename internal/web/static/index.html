@@ -210,6 +210,8 @@
 .cattbl td:first-child { padding-left:6px; white-space:nowrap; }
 .cattbl input { width:100%; min-width:120px; }
 .cattbl td:nth-child(3) { width:50%; }
+.logview { margin:0; flex:1; min-height:260px; max-height:340px; overflow:auto; background:var(--bg); border:1px solid var(--line); border-radius:3px;
+  padding:8px; font:11px/1.45 Consolas, "Cascadia Mono", monospace; white-space:pre-wrap; overflow-wrap:anywhere; user-select:text; color:var(--fg); }
 .hrow { display:flex; gap:6px; margin-bottom:6px; } .hrow .h-host { flex:1; min-width:0; }
 .integ { display:flex; flex-direction:column; gap:8px; }
   .integ .row { border:1px solid var(--line); border-radius:3px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
@@ -938,7 +940,7 @@ async function renderIntegrations(box, err) {
 /* ---------- settings ---------- */
 // Local daemon only (info.canSettings). Saved in prefs.json and applied at once;
 // file-type and site rules are read by the browser extensions when they capture.
-const SET_TABS = ["general", "types", "save", "downloads", "conn"];
+const SET_TABS = ["general", "types", "save", "downloads", "conn", "log"];
 const lines = s => s.split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
 async function settingsDialog(tab = store.get("odm.settab") || "general") {
   let cur;
@@ -993,6 +995,15 @@ async function settingsDialog(tab = store.get("odm.settab") || "general") {
       </div>
       <div class="shint">${t("set.limitHint")}</div>
     </div>
+    <div class="spane" data-pane="log">
+      <label class="chk"><input type="checkbox" id="o-log"${cur.log ? " checked" : ""}> ${t("set.log")}</label>
+      <div class="shint">${t("set.logHint")}</div>
+      <div class="yt-tools"><span class="grow" id="o-logpath"></span>
+        <button type="button" class="btn small" id="o-logrefresh">${t("set.logRefresh")}</button>
+        ${info.canReveal ? `<button type="button" class="btn small" id="o-logreveal">${t("m.reveal")}</button>` : ""}
+        <button type="button" class="btn small" id="o-logcopy">${t("set.logCopy")}</button></div>
+      <pre class="logview" id="o-logtext"></pre>
+    </div>
     <div class="err" id="o-err"></div>`;
   dialog(t("set.title"), body, [
     { label:t("btn.cancel") },
@@ -1010,6 +1021,7 @@ async function settingsDialog(tab = store.get("odm.settab") || "general") {
         connections:+q("#o-conns").value,
         hostConnections:[...el.querySelectorAll(".hrow")].map(r => ({ host:r.querySelector(".h-host").value.trim(), connections:+r.querySelector(".h-conns").value })).filter(h => h.host),
         speedLimit:Math.max(0, Math.round(+q("#o-speed").value || 0)), totalLimit:Math.max(0, Math.round(+q("#o-total").value || 0)),
+        log:q("#o-log").checked,
       };
       if (q("#o-auto")) next.autostart = q("#o-auto").checked;
       try { await api("/settings", { method:"PUT", body:JSON.stringify(next) }); }
@@ -1054,6 +1066,22 @@ async function settingsDialog(tab = store.get("odm.settab") || "general") {
     if (e.target.closest("[data-del-host]")) e.target.closest(".hrow").remove();
   });
   el.querySelector("#o-addhost").onclick = () => { el.querySelector("#o-hosts").insertAdjacentHTML("beforeend", hostRow()); el.querySelector("#o-hosts .hrow:last-child .h-host").focus(); };
+  // Log tab: the newest lines at the bottom, loaded when the tab is opened.
+  const loadLog = async () => {
+    const box = el.querySelector("#o-logtext"); if (!box) return;
+    try {
+      const r = await api("/log?lines=400");
+      el.querySelector("#o-logpath").textContent = r.path || "";
+      box.textContent = r.lines.length ? r.lines.join("\n") : t(r.enabled ? "set.logEmpty" : "set.logOff");
+      box.scrollTop = box.scrollHeight;
+    } catch (e) { box.textContent = e.message; }
+  };
+  el.querySelector(".stabs").addEventListener("click", e => { if (e.target.closest("[data-stab=log]")) loadLog(); });
+  if (tab === "log") loadLog();
+  el.querySelector("#o-logrefresh").onclick = loadLog;
+  el.querySelector("#o-logcopy").onclick = () => navigator.clipboard.writeText(el.querySelector("#o-logtext").textContent).then(() => toast(t("set.logCopied")), () => {});
+  const rv = el.querySelector("#o-logreveal");
+  if (rv) rv.onclick = () => api("/log/reveal", { method:"POST" }).catch(e => { el.querySelector("#o-err").textContent = e.message; });
   if (info.canIntegrate) renderIntegrations(el.querySelector("#i-list"), el.querySelector("#i-err"));
   else el.querySelector("#i-list").closest(".sgroup").hidden = true;
 }

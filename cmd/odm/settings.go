@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 
 	"golang.org/x/time/rate"
 
+	"github.com/aoztrk82/open-download-manager/internal/applog"
 	"github.com/aoztrk82/open-download-manager/internal/config"
 	"github.com/aoztrk82/open-download-manager/internal/engine"
 	"github.com/aoztrk82/open-download-manager/internal/queue"
@@ -66,6 +69,14 @@ func (st *settingsStore) SetSettings(s config.Settings) error {
 	cur := st.copyLocked()
 	st.mu.Unlock()
 	engine.SetShared(st.shared, s.TotalLimit*1024)
+	if s.Log && !applog.Enabled() {
+		applog.SetEnabled(true)
+	}
+	applog.L().Info("settings saved", "dir", cur.Dir(), "categories", s.UseCategories, "maxActive", s.MaxActive,
+		"connections", s.Connections, "speedLimit", s.SpeedLimit, "totalLimit", s.TotalLimit,
+		"capture", fmt.Sprint(s.Capture), "browserTypes", strings.Join(s.BrowserTypes, ","),
+		"autoTypes", strings.Join(s.AutoTypes, ","), "autoSites", strings.Join(s.AutoSites, ","), "skipSites", strings.Join(s.SkipSites, ","))
+	applog.SetEnabled(s.Log)
 	if st.q != nil {
 		st.q.SetConfig(st.queueConfig(cur))
 	}
@@ -79,7 +90,7 @@ func (st *settingsStore) queueConfig(s config.Settings) queue.Config {
 	c := queue.Config{
 		DefaultDir: s.Dir(), MaxConcurrent: s.MaxActive, Connections: s.Connections,
 		RateLimit: s.SpeedLimit * 1024, Shared: st.shared,
-		DirFor: s.DirFor, ConnectionsFor: s.ConnectionsFor,
+		DirFor: s.DirFor, ConnectionsFor: s.ConnectionsFor, Log: applog.L(),
 	}
 	if f := st.flags; f.MaxActive > 0 {
 		c.MaxConcurrent = f.MaxActive

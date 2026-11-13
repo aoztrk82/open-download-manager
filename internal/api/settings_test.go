@@ -86,3 +86,26 @@ func TestOpenFile(t *testing.T) {
 		t.Fatalf("server without open: %d", got)
 	}
 }
+
+func TestLogEndpoints(t *testing.T) {
+	h := dialogServer(t, &Server{AnyDir: true, Settings: &fakeSettings{s: config.DefaultSettings()}})
+	for _, c := range []struct {
+		name string
+		hdr  map[string]string
+		want int
+	}{
+		{"text/plain", map[string]string{"Content-Type": "text/plain"}, 415},
+		{"hostile page", map[string]string{"Content-Type": "application/json", "Origin": "https://evil.example.com"}, 403},
+		{"extension", map[string]string{"Content-Type": "application/json", "Origin": "chrome-extension://abc"}, 204},
+	} {
+		if got := do(h, "POST", "/v1/log", self, c.hdr, `{"msg":"capture","fields":{"url":"https://x/a.zip"}}`).Code; got != c.want {
+			t.Errorf("%s: got %d, want %d", c.name, got, c.want)
+		}
+	}
+	if got := do(h, "GET", "/v1/log", self, nil, "").Code; got != 200 {
+		t.Fatalf("GET /v1/log: %d", got)
+	}
+	if got := do(dialogServer(t, &Server{}), "GET", "/v1/log", self, nil, "").Code; got != 501 {
+		t.Fatalf("server GET /v1/log: %d", got)
+	}
+}

@@ -170,6 +170,8 @@ export class OdmClient {
   add(request: DownloadRequest, o: AddOptions = {}) {
     return this.call<Download>("POST", "/downloads", { request, filename: o.filename, dir: o.dir, paused: o.paused });
   }
+  /** Adds a line to ODM's download log (only when it keeps one). */
+  log(msg: string, fields: Record<string, unknown>) { return this.call<void>("POST", "/log", { msg, fields }, 3_000); }
   /** The local daemon's Settings (capture rules, category folders). */
   settings(timeoutMs = 5_000) { return this.call<CaptureRules>("GET", "/settings", undefined, timeoutMs); }
   probe(request: DownloadRequest) { return this.call<Probe>("POST", "/probe", { request }, 15_000); }

@@ -18,6 +18,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/aoztrk82/open-download-manager/internal/applog"
 	"github.com/aoztrk82/open-download-manager/internal/ffmpeg"
 	"github.com/aoztrk82/open-download-manager/internal/proto"
 	"github.com/aoztrk82/open-download-manager/internal/queue"
@@ -135,6 +136,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /v1/prefs", s.setPrefs)
 	mux.HandleFunc("GET /v1/settings", s.getSettings)
 	mux.HandleFunc("PUT /v1/settings", s.putSettings)
+	mux.HandleFunc("GET /v1/log", s.getLog)
+	mux.HandleFunc("POST /v1/log", s.postLog)
+	mux.HandleFunc("POST /v1/log/reveal", s.revealLog)
 	mux.HandleFunc("GET /v1/media", s.mediaInfo)
 	mux.HandleFunc("POST /v1/media/probe", s.mediaProbe)
 	mux.HandleFunc("POST /v1/media/update", s.mediaUpdate)
@@ -373,9 +377,11 @@ func (s *Server) add(w http.ResponseWriter, r *http.Request) {
 	req.Dir = dir
 	d, err := s.Queue.Add(req)
 	if err != nil {
+		applog.L().Warn("add refused", "from", clientOf(r), "url", req.Request.URL, "err", err)
 		writeErr(w, 400, err.Error())
 		return
 	}
+	logAdd(r, req, d.ID, d.Dir)
 	writeJSON(w, 201, d)
 }
 

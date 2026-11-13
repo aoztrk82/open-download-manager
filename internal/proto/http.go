@@ -59,7 +59,7 @@ func (h *HTTP) Probe(ctx context.Context, r Request) (Info, error) {
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1))
 
-	info := Info{Size: -1, FinalURL: resp.Request.URL.String()}
+	info := Info{Size: -1, FinalURL: resp.Request.URL.String(), Status: resp.Status, ContentType: resp.Header.Get("Content-Type")}
 	switch resp.StatusCode {
 	case http.StatusPartialContent:
 		info.AcceptRanges = true

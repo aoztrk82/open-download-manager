@@ -47,7 +47,7 @@ function check(name, keys, src, dynamic) {
   check("web", keys, pages, {
     "status.": ["active", "queued", "paused", "completed", "failed"],
     "cs.": ["waiting", "connecting", "active", "retrying", "done", "stopped", "failed"],
-    "set.tab.": ["general", "types", "save", "downloads", "conn"],
+    "set.tab.": ["general", "types", "save", "downloads", "conn", "log"],
     "cat.": ["video", "music", "compressed", "documents", "programs", "images"],
   });
 }

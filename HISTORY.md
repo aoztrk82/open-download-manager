@@ -49,6 +49,12 @@ Newest first. Commit hashes refer to `git log`.
   fetch the capture rules (which browsers, types the browser keeps, types/sites without the dialog, sites never
   captured) from ODM. Integrations moved from the menu into Settings > General. Progress windows are separate
   `odm.exe progress <id>` processes started by the tray (`/progress.html`, taskbar progress via ITaskbarList3).
+- Download log (owner: "when I say it did not download, you should see the URL and why"): `internal/applog`,
+  Settings > Log (view, copy, show in folder). Owner's mail.ru report, found from their ODM's list: the player's
+  `<video src="">` makes `video.src` the page address, so the menu offered the page as a "file" and ODM saved
+  HTML. Fixed in the extension (the page is never a source; mail.ru goes to yt-dlp, which supports it) and in
+  ODM (a text/html answer for a video/audio name is refused with a clear error). A repo-root dev build also
+  finds `dist\yt-dlp\yt-dlp.exe`.
 - Test incident: an end-to-end script clicked the first "primary" button in the Settings dialog, which was
   "Install in Firefox", and the test daemon opened the owner's Firefox (closed again by its PID) and saved a
   test file to the real Downloads (deleted). Fixed the cause: dialog Enter/primary only means the footer

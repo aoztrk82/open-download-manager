@@ -4,10 +4,14 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -113,11 +117,40 @@ type Options struct {
 	MinSplit           int64         // never leave a connection less than this to fetch (default 1 MiB)
 	Retries            int           // per-segment retries (default 5)
 	RateLimit          int64         // bytes/sec across all segments, 0 = unlimited
+	// Log receives what the server answered and why things failed; nil = none.
+	Log *slog.Logger
 	// Shared limits all downloads together (Settings > total speed limit);
 	// nil = none. Its rate may change while downloads run.
 	Shared *rate.Limiter
 
 	bufSize int // read buffer per connection; tests shrink it with MinSplit
+}
+
+func (o Options) log() *slog.Logger {
+	if o.Log != nil {
+		return o.Log
+	}
+	return discard
+}
+
+var discard = slog.New(slog.NewTextHandler(io.Discard, nil))
+
+// mediaExts are names that promise a video or audio file.
+var mediaExts = map[string]bool{"mp4": true, "m4v": true, "mkv": true, "webm": true, "mov": true, "avi": true,
+	"flv": true, "ts": true, "mp3": true, "m4a": true, "ogg": true, "opus": true, "wav": true, "flac": true}
+
+// notAPage refuses a web page where a video or audio file was asked for (a
+// player's address taken for the file): saving it would only give a .html
+// named like a video.
+func notAPage(info proto.Info, want string) error {
+	mt := strings.ToLower(strings.TrimSpace(strings.Split(info.ContentType, ";")[0]))
+	if mt != "text/html" && mt != "application/xhtml+xml" {
+		return nil
+	}
+	if !mediaExts[strings.ToLower(strings.TrimPrefix(filepath.Ext(want), "."))] {
+		return nil
+	}
+	return errors.New("the server sent a web page, not the video file (try the yt-dlp entry for this site)")
 }
 
 // DefaultConnections is the per-download ceiling when none is configured.
@@ -174,7 +207,14 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 	if len(st.Segments) == 0 {
 		info, err := src.Probe(ctx, o.Req)
 		if err != nil {
+			o.log().Warn("probe failed", "err", err)
 			return fmt.Errorf("probe: %w", err)
+		}
+		o.log().Info("probe", "status", info.Status, "type", info.ContentType, "size", info.Size,
+			"ranges", info.AcceptRanges, "name", info.Filename, "final", info.FinalURL)
+		if err := notAPage(info, o.Filename); err != nil {
+			o.log().Warn("refused", "err", err)
+			return err
 		}
 		st.Size, st.AcceptRanges, st.Filename = info.Size, info.AcceptRanges, info.Filename
 		st.Segments = plan(info)

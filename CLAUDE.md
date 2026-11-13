@@ -40,6 +40,11 @@ internal/config    paths; prefs.json = language + Settings dialog (settings.go: 
                    site rules, download folder + category folders, downloads at once, progress/complete windows,
                    connections + per-site exceptions, per-download and total speed limits). Local daemon only:
                    GET/PUT /v1/settings, applied live (cmd/odm/settings.go -> queue.SetConfig, shared limiter)
+internal/applog    download log (slog text lines) in %APPDATA%\odm\logs\odm.log, rotated 3 x 5 MB, Settings > Log
+                   (default on). Writes: add (from extension/webui/cli, url, kind, name, dir, cookie COUNT only),
+                   start/completed/failed/paused/removed per id, server probe (status, Content-Type, size,
+                   ranges), retries, HLS/ffmpeg/yt-dlp errors, and extension events via POST /v1/log (capture
+                   decision, video menu contents, picks). GET /v1/log?lines=N, POST /v1/log/reveal
 cmd/odm progress   progress_windows.go: tray watches queue events and starts `odm.exe progress <id>` (small
                    WebView2 window on /progress.html, Pause/Cancel/Hide, turns into "download complete" with
                    Open / Show in Folder); taskbar_windows.go = ITaskbarList3 progress (also the main window)
@@ -105,6 +110,12 @@ Web UI has no build step; check syntax by extracting the `<script>` and running 
   server, folder (`dir`, recent per destination, "Browse…" = `POST /v1/pickfolder`, local daemon only), Download /
   Later (`paused`) / browser. Server mode only accepts folders inside its download dir (`checkDir` in
   `internal/api/dialog.go`); the local daemon accepts any absolute folder (`Server.AnyDir`).
+
+## When the owner says "it did not download"
+Read the log first: `%APPDATA%\odm\logs\odm.log` (and `odm.1.log`). Find the `add` line for the URL, then the
+lines with the same `id=`: `probe` shows what the server answered (a `type="text/html"` for a video = a page
+was taken for the file), `failed` the error. The extension's `video menu` / `capture` lines say what it offered
+and decided. A read-only `GET http://127.0.0.1:6800/v1/downloads` also shows what the extension sent.
 
 ## Rules for working in this repo (learned the hard way)
 - **Never open a window, launch the GUI or take screenshots unless the owner says so.** They may be gaming or working.

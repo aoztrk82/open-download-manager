@@ -39,7 +39,10 @@ type Settings struct {
 	Connections     int         `json:"connections"`
 	HostConnections []HostLimit `json:"hostConnections"`
 	SpeedLimit      int64       `json:"speedLimit"` // KiB/s per download, 0 = unlimited
-	TotalLimit      int64       `json:"totalLimit"` // KiB/s for all downloads together, 0 = unlimited
+	// Log keeps the download log (<config>/logs/odm.log, rotated): what was
+	// asked, what servers answered, why downloads failed.
+	Log        bool  `json:"log"`
+	TotalLimit int64 `json:"totalLimit"` // KiB/s for all downloads together, 0 = unlimited
 }
 
 // Category is a group of file extensions with its own folder.
@@ -80,6 +83,7 @@ func DefaultSettings() Settings {
 		MaxActive:    3,
 		ShowProgress: true,
 		ShowComplete: true,
+		Log:          true,
 	}
 	for _, id := range CategoryIDs {
 		d := categoryDefaults[id]

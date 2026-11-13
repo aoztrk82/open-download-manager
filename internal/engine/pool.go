@@ -174,6 +174,7 @@ func (p *pool) runSegment(i int, buf []byte) error {
 			p.st.Conns[i].Retries = attempt
 			p.mu.Unlock()
 			p.setConn(i, ConnRetrying, lastErr)
+			p.o.log().Warn("connection retry", "conn", i+1, "attempt", attempt, "err", lastErr)
 			select {
 			case <-p.ctx.Done():
 				p.setConn(i, ConnStopped, nil)
@@ -226,6 +227,7 @@ func (p *pool) runSegment(i int, buf []byte) error {
 		}
 	}
 	p.setConn(i, ConnFailed, lastErr)
+	p.o.log().Warn("connection gave up", "conn", i+1, "err", lastErr)
 	return fmt.Errorf("segment %d: %w", i, lastErr)
 }
 
@@ -342,6 +344,7 @@ func (p *pool) run() error {
 				growing = false
 				if running > 0 && running < limit {
 					limit = running
+					p.o.log().Info("server allows fewer connections", "host", host, "limit", limit, "err", err)
 					p.e.setHostLimit(host, limit)
 					setLimit(limit)
 				}

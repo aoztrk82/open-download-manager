@@ -69,6 +69,8 @@ func (e *Engine) runHLS(ctx context.Context, st *State, o Options, src proto.Sou
 	if err != nil {
 		return err
 	}
+	o.log().Info("hls playlist", "variant", h.Variant, "pieces", len(m.Items), "needsFFmpeg", m.NeedsFFmpeg,
+		"fromPage", o.Req.Media.Playlist != "")
 	if len(h.Done) != len(m.Items) { // new download, or the playlist changed
 		h.Done, h.Bytes = make([]bool, len(m.Items)), 0
 	}
@@ -197,6 +199,7 @@ feed:
 		return parent.Err() // paused / shutting down: pieces stay for the resume
 	}
 	if firstErr != nil {
+		o.log().Warn("hls piece failed", "err", firstErr)
 		return firstErr
 	}
 
@@ -212,6 +215,7 @@ feed:
 		// Not ctx: pause/shutdown must not leave a half-written file; joining
 		// is a local copy and takes seconds.
 		if err := ffmpeg.Remux(context.Background(), ffPath, []string{index}, tmp); err != nil {
+			o.log().Warn("ffmpeg join failed", "ffmpeg", ffPath, "err", err)
 			return err
 		}
 		if err := os.Rename(tmp, dest); err != nil {

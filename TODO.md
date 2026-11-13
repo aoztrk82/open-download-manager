@@ -39,6 +39,13 @@ downloaded by an isolated daemon, the Web UI dialog against an isolated daemon (
 - [ ] "Update yt-dlp" button in the installed program (-U needs a writable install dir; per-user install is).
 - [ ] Owner's own Chrome: YouTube menu -> dialog -> their ODM.
 
+## 0f. Download log (sixth session, end)
+Tested on an isolated daemon: the mail.ru page sent as a "file" fails with "the server sent a web page" and the
+log shows `probe ... type="text/html"`; the same page via yt-dlp starts (81 MiB, deleted); extension POST
+/v1/log lands in the log; Settings > Log shows it (screenshot). Rotation/tail unit-tested.
+- [ ] Owner: rebuild + reload the extension, try the mail.ru link again (menu should offer only "yt-dlp ile").
+      The extension's log lines appear only once it has fetched the rules (log: true) from the new ODM.
+
 ## 0e. Settings window + progress windows (sixth session, 2026-11-13)
 Owner's request: a tabbed Settings dialog (General / File Types / Save / Downloads / Connection), browser
 integrations moved there from the menu, a progress window per download with Windows taskbar progress and a
