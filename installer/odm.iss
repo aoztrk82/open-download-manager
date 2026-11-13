@@ -58,6 +58,8 @@ Name: "autostart"; Description: "{cm:Autostart}"; GroupDescription: "{cm:ExtraTa
 
 [Files]
 Source: "..\dist\odm.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Starts odm.exe without a cmd window (cmd/odmw); autostart, shortcuts and "start now" use it.
+Source: "..\dist\odmw.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; Small LGPL remux-only ffmpeg (tools/ffmpeg/build.sh); ODM finds it next to odm.exe.
 Source: "..\dist\ffmpeg\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\ffmpeg\ffmpeg-LICENSE.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
@@ -71,18 +73,18 @@ Source: "..\dist\yt-dlp\yt-dlp-LICENSE.txt"; DestDir: "{app}\licenses"; Flags: i
 Source: "..\dist\yt-dlp\quickjs-ng-LICENSE.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\odm.exe"; Comment: "{#AppFullName}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\odm.exe"; Tasks: desktopicon
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\odmw.exe"; IconFilename: "{app}\odm.exe"; Comment: "{#AppFullName}"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\odmw.exe"; IconFilename: "{app}\odm.exe"; Tasks: desktopicon
 
 [Registry]
 ; Same value the tray's "Start with Windows" item writes, so the two agree.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "ODM"; \
-  ValueData: """{app}\odm.exe"" tray --background"; Tasks: autostart; Flags: uninsdeletevalue
+  ValueData: """{app}\odmw.exe"" tray --background"; Tasks: autostart; Flags: uninsdeletevalue
 
 [Run]
 ; The tray registers the browser native-messaging host and refreshes the
 ; Chrome extension folder on start, so launching it finishes the setup.
-Filename: "{app}\odm.exe"; Description: "{cm:LaunchNow}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\odmw.exe"; Description: "{cm:LaunchNow}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 ; yt-dlp -U leaves its previous exe next to the new one.

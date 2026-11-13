@@ -2,6 +2,14 @@
 
 Newest first. Commit hashes refer to `git log`.
 
+## 2026-11-13 - 0.5.1
+- Owner: a cmd window opened at Windows sign-in (Run-key autostart of the console-subsystem odm.exe).
+  New `cmd/odmw` (built with `-H windowsgui`) starts odm.exe with CREATE_NO_WINDOW; the installer ships it and
+  points autostart, shortcuts and "start now" at it. The tray also frees a console created only for itself
+  (`dropOwnConsole`) and moves an old Run value from odm.exe to the odmw.exe beside it (`refreshAutostart`).
+  Checked after a real reboot: Run value = odmw.exe, tray started in the background, daemon answered.
+  Extension unchanged (stays 0.5.0, no re-sign); no new Docker image (Windows-only change).
+
 ## 2026-11-13 - sixth session
 - New dev PC set up: Go 1.27.4 (winget), pnpm 12 (npm -g), Inno Setup 6.7.3 (per-user), MSYS2 make/diffutils.
   pnpm 12 fails installs on unapproved build scripts: esbuild approved in `extension/pnpm-workspace.yaml`.

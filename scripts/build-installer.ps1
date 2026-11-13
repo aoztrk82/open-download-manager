@@ -24,6 +24,8 @@ Step "odm.exe $version"
 New-Item -ItemType Directory -Force dist | Out-Null
 # -s -w: no symbol tables (smaller download); stack traces still have file:line.
 go build -trimpath -ldflags "-s -w" -o dist\odm.exe ./cmd/odm; Check "go build"
+# GUI subsystem: starts odm.exe without a cmd window (autostart, shortcuts).
+go build -trimpath -ldflags "-s -w -H windowsgui" -o dist\odmw.exe ./cmd/odmw; Check "go build odmw"
 
 if ($RebuildFFmpeg -or -not (Test-Path dist\ffmpeg\ffmpeg.exe)) {
   Step "ffmpeg (MSYS2)"

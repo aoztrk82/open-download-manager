@@ -153,6 +153,8 @@ read the `[ODM]` console lines.
 
 ## 5. Small known issues
 - Context menu shows a stray separator when "Show in Folder" is hidden (remote/browser use).
-- Brief console flash on double-click (console-subsystem exe); needs a separate GUI-subsystem build to remove.
+- Brief console flash when `odm.exe` itself is double-clicked (console-subsystem exe). Since 0.5.1 autostart,
+  Start menu, desktop shortcut and the installer's "start now" go through `odmw.exe` (GUI subsystem), so only a
+  direct double-click on odm.exe still flashes.
 - `internal/queue` has no cancel-during-download test for `Remove(deleteFile)` on active downloads.
 - Closing the chooser cancels the download (deliberate; could instead fall back to the browser).

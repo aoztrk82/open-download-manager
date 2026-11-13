@@ -5,6 +5,7 @@ package main
 import (
 	"os/exec"
 	"syscall"
+	"unsafe"
 )
 
 const (
@@ -12,6 +13,24 @@ const (
 	createNewProcGroup     = 0x00000200
 	createBreakawayFromJob = 0x01000000
 )
+
+var (
+	kernel32              = syscall.NewLazyDLL("kernel32.dll")
+	getConsoleProcessList = kernel32.NewProc("GetConsoleProcessList")
+	freeConsole           = kernel32.NewProc("FreeConsole")
+)
+
+// dropOwnConsole closes the console window Windows created just for us. odm.exe
+// is a console program, so the Run-key autostart (`odm.exe tray --background`)
+// gets a cmd window; closing it would kill the tray. A console shared with a
+// shell (`odm tray` typed in a terminal) is left alone so its output stays.
+func dropOwnConsole() {
+	var pids [2]uint32
+	n, _, _ := getConsoleProcessList.Call(uintptr(unsafe.Pointer(&pids[0])), 2)
+	if n == 1 {
+		freeConsole.Call()
+	}
+}
 
 // startDetached launches exe so that it outlives us. It asks to break away from
 // our job object: browsers run native-messaging hosts inside a job that kills

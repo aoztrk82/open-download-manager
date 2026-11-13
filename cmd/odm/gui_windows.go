@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -65,6 +66,8 @@ func localClient() *api.Client { return api.NewClient(localURL(), "") }
 // ---- tray ----
 
 func runTray(background bool) error {
+	dropOwnConsole()
+	refreshAutostart()
 	// Make the browser extension able to start us later (idempotent, cheap).
 	if err := registerNativeHost(); err != nil {
 		fmt.Fprintln(os.Stderr, "native messaging registration:", err)
@@ -191,13 +194,55 @@ func setAutostart(on bool) error {
 	if !on {
 		return k.DeleteValue("ODM")
 	}
-	exe, err := os.Executable()
+	cmd, err := autostartCommand()
 	if err != nil {
 		return err
 	}
-	// --background: signing in to Windows should not pop up the window. The
-	// installer's autostart task writes the same value (installer/odm.iss).
-	return k.SetStringValue("ODM", `"`+exe+`" tray --background`)
+	return k.SetStringValue("ODM", cmd)
+}
+
+// autostartCommand is the Run-key value. --background: signing in to Windows
+// should not pop up the window. odmw.exe (cmd/odmw) starts odm.exe without the
+// cmd window a console program would flash; a build without it (go build of
+// odm alone) falls back to odm.exe. The installer writes the same value
+// (installer/odm.iss).
+func autostartCommand() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	if w := filepath.Join(filepath.Dir(exe), "odmw.exe"); fileExists(w) {
+		exe = w
+	}
+	return `"` + exe + `" tray --background`, nil
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
+}
+
+// refreshAutostart moves an existing Run value from this odm.exe to the odmw.exe
+// beside it (installs from before odmw.exe). A value pointing at another copy
+// (say the installed one while a dev build runs) is left alone.
+func refreshAutostart() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	old := `"` + exe + `" tray --background`
+	k, err := registry.OpenKey(registry.CURRENT_USER, runKey, registry.QUERY_VALUE|registry.SET_VALUE)
+	if err != nil {
+		return
+	}
+	defer k.Close()
+	cur, _, err := k.GetStringValue("ODM")
+	if err != nil {
+		return // autostart is off: leave it off
+	}
+	if want, err := autostartCommand(); err == nil && strings.EqualFold(cur, old) && cur != want {
+		_ = k.SetStringValue("ODM", want)
+	}
 }
 
 // winAutostart is Settings > General > "Start with Windows".
