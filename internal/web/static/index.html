@@ -283,6 +283,7 @@
   <button class="tb" data-act="resume" id="tb-resume" data-i18n-title="m.resume" title="Resume"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg><span data-i18n="m.resume">Resume</span></button>
   <button class="tb" data-act="pause" id="tb-pause" data-i18n-title="m.pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg><span data-i18n="m.pause">Pause</span></button>
   <button class="tb" data-act="remove" id="tb-remove" data-i18n-title="tb.removeTitle" title="Remove (Del)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg><span data-i18n="m.remove">Remove</span></button>
+  <button class="tb" data-act="clearDone" data-i18n-title="tb.clearTitle" title="Remove finished downloads from the list"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 11h10M4 16h6M15 14l6 6M21 14l-6 6"/></svg><span data-i18n="tb.clear">Clear List</span></button>
   <div class="vsep"></div>
   <button class="tb" data-act="laterToggle" id="tb-later" data-i18n-title="tb.laterTitle" title="Start or stop the Later queue"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/><path id="tb-later-ic" d="M10.5 12.5v5l4-2.5z"/></svg><span id="tb-later-label" data-i18n="tb.laterStart">Start Queue</span></button>
   <div class="vsep" data-needs="settings" hidden></div>
@@ -341,6 +342,7 @@
 <div id="ctx"><div class="dropdown">
   <div class="item" data-act="resume"><span data-i18n="m.resume">Resume</span></div>
   <div class="item" data-act="pause"><span data-i18n="m.pause">Pause</span></div>
+  <div class="item" data-act="open"><span data-i18n="m.openWin">Open Download Window</span><span class="key">Enter</span></div>
   <div class="sep"></div>
   <div class="item" data-act="toMain"><span data-i18n="m.toMain">Add to Queue</span></div>
   <div class="item" data-act="toLater"><span data-i18n="m.toLater">Move to Later</span></div>
@@ -697,7 +699,8 @@ const actions = {
   },
   pauseAll: () => each(items.filter(d => d.status === "active" || d.status === "queued"), d => api(`/downloads/${d.id}/pause`, { method:"POST" })),
   resumeAll: () => each(items.filter(d => d.status === "paused"), d => api(`/downloads/${d.id}/resume`, { method:"POST" })),
-  clearDone: () => each(items.filter(d => d.status === "completed"), d => api(`/downloads/${d.id}`, { method:"DELETE" })),
+  clearDone: () => clearListDialog(),
+  open: () => { const d = selItems()[0]; if (d) openDownloadWindow(d.id); },
   selectAll: () => { visible().forEach(d => selected.add(d.id)); render(); },
   copyUrl: () => { const urls = selItems().map(d => d.request.url).join("\n"); if (urls) navigator.clipboard.writeText(urls).catch(() => {}); },
   toggleSidebar: () => setPane("sidebar", $("sidebar").hidden),
@@ -968,6 +971,22 @@ function ytdlpDialog(prefill = "") {
 // Persistent 401 failures re-open the token prompt on every poll; once the user
 // dismisses it we stay quiet until they ask again via Tools > Change Server Token.
 let tokenPromptMuted = false;
+// Clear List: takes finished entries off the list (files stay unless asked).
+function clearListDialog() {
+  const n = st => items.filter(d => d.status === st).length;
+  const row = (id, st, on) => `<label class="chk"><input type="checkbox" id="${id}"${on && n(st) ? " checked" : ""}${n(st) ? "" : " disabled"}> ${t("clr." + st, { n:n(st) })}</label>`;
+  dialog(t("clr.title"), `<div>${t("clr.ask")}</div>
+    ${row("c-done", "completed", true)}${row("c-fail", "failed", false)}${row("c-pause", "paused", false)}
+    <label class="chk"><input type="checkbox" id="c-files"> ${t("clr.files")}</label>
+    <div class="shint">${t("clr.filesHint")}</div><div class="err" id="c-err"></div>`, [
+    { label:t("btn.cancel") },
+    { label:t("clr.ok"), primary:true, action: async el => {
+      const want = new Set([["c-done", "completed"], ["c-fail", "failed"], ["c-pause", "paused"]].filter(([id]) => el.querySelector("#" + id).checked).map(([, st]) => st));
+      if (!want.size) { el.querySelector("#c-err").textContent = t("clr.none"); return false; }
+      const del = el.querySelector("#c-files").checked;
+      await each(items.filter(d => want.has(d.status)), d => api(`/downloads/${d.id}${del ? "?deleteFile=true" : ""}`, { method:"DELETE" }));
+    } }]);
+}
 function confirmRemove(list) {
   if (!list.length) return;
   const names = list.slice(0, 4).map(d => `<li>${esc(nameOf(d))}</li>`).join("") + (list.length > 4 ? `<li>${t("rm.more", { n:list.length - 4 })}</li>` : "");
@@ -1032,7 +1051,10 @@ const lines = s => s.split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
 async function settingsDialog(tab = store.get("odm.settab") || "general") {
   let cur;
   try { cur = await api("/settings"); } catch (e) { toast(e.message); return; }
-  if (!SET_TABS.includes(tab)) tab = "general";
+  // A server (token mode): browser capture rules belong to the local ODM the
+  // extensions talk to, and its download folder is fixed by --dir.
+  const server = info.anyFolder === false;
+  if (!SET_TABS.includes(tab) || (server && tab === "types")) tab = "general";
   const sep = (cur.defaultDir || info.defaultDir || "").includes("/") ? "/" : "\\";
   const browse = id => info.canPickFolder ? `<button type="button" class="btn" data-browse="${id}">${t("add.browse")}</button>` : "";
   const connOpts = sel => Array.from({ length:32 }, (_, i) => `<option value="${i + 1}"${sel === i + 1 ? " selected" : ""}>${i + 1}</option>`).join("");
@@ -1139,6 +1161,12 @@ async function settingsDialog(tab = store.get("odm.settab") || "general") {
     el.querySelectorAll("[data-pane]").forEach(p => { p.hidden = p.dataset.pane !== x; });
   };
   show(tab);
+  if (server) {
+    el.querySelector("[data-stab=types]").hidden = true;
+    el.querySelector("[data-cap]").closest(".sgroup").hidden = true;
+    const di = el.querySelector("#o-dir"); di.readOnly = true; di.title = t("set.serverDir");
+    el.querySelector("[data-browse=o-dir]")?.remove();
+  }
   el.querySelector(".stabs").onclick = e => { const b = e.target.closest("[data-stab]"); if (b) show(b.dataset.stab); };
   el.querySelector("#o-lang").value = lang;
   // An empty category folder means "<download folder>\<Video…>": show that as
@@ -1231,8 +1259,19 @@ $("rows").addEventListener("click", e => {
   else { selected = new Set([id]); anchor = id; }
   render();
 });
-$("rows").addEventListener("dblclick", e => { const tr = e.target.closest("tr"); if (!tr) return; selected = new Set([tr.dataset.id]); const d = selItems()[0];
-  if (d && (d.status === "paused" || d.status === "failed")) actions.resume(); else if (d && (d.status === "active" || d.status === "queued")) actions.pause(); });
+// Double-click: the download's own window (progress while it runs, "complete"
+// when done). The desktop app opens it as a window; a browser as a popup.
+$("rows").addEventListener("dblclick", e => {
+  const tr = e.target.closest("tr"); if (!tr) return;
+  selected = new Set([tr.dataset.id]); render();
+  openDownloadWindow(tr.dataset.id);
+});
+async function openDownloadWindow(id) {
+  if (info && info.canWindow) {
+    try { await api(`/downloads/${id}/window`, { method:"POST" }); return; } catch (e) { toast(e.message); return; }
+  }
+  window.open(`progress.html#id=${encodeURIComponent(id)}&lang=${lang}`, "odm-" + id, "width=520,height=360");
+}
 $("tablewrap").addEventListener("click", e => { if (e.target === $("tablewrap") || e.target.id === "empty") { selected.clear(); render(); } });
 // context menu
 function hideCtx() { $("ctx").style.display = "none"; }
@@ -1259,6 +1298,7 @@ document.addEventListener("keydown", e => {
   else if (!typing && e.ctrlKey && e.key.toLowerCase() === "a") { e.preventDefault(); actions.selectAll(); }
   else if (!typing && e.ctrlKey && e.key.toLowerCase() === "c") actions.copyUrl();
   else if (!typing && e.key === "Delete") actions.remove();
+  else if (!typing && e.key === "Enter" && selected.size === 1) { e.preventDefault(); actions.open(); }
   else if (e.key === "Escape") { closeMenus(); hideCtx(); }
 });
 

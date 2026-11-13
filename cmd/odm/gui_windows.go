@@ -96,6 +96,8 @@ func runTray(background bool) error {
 			}
 			langCh <- l
 		},
+		// Double-click in the list: the user asked, so no window limit.
+		ShowWindow: func(id string) error { return spawnSelf("progress", id) },
 		// Settings > General changes autostart: keep the tray's checkbox in step.
 		Autostart: winAutostart{onChange: func(on bool) {
 			select {

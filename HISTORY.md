@@ -55,6 +55,12 @@ Newest first. Commit hashes refer to `git log`.
   HTML. Fixed in the extension (the page is never a source; mail.ru goes to yt-dlp, which supports it) and in
   ODM (a text/html answer for a video/audio name is refused with a clear error). A repo-root dev build also
   finds `dist\yt-dlp\yt-dlp.exe`.
+- Toward 0.5.0: "Clear List" (toolbar + File menu: completed / failed / paused, files optional); double-click or
+  Enter opens the download's window (progress, or "complete" when done; POST /v1/downloads/{id}/window in the
+  desktop app, progress.html popup in a browser). Docker image (owner: "prepare everything, I will install Docker
+  and we publish 0.5.0 on Docker Hub and GitHub releases"): Dockerfile, docker-compose.yml, scripts/docker-build.ps1;
+  ffmpeg components shared between the Windows and Linux builds. Settings now also work on a token server
+  (folders stay inside --dir). Not built yet: Docker was not installed on this PC.
 - Version 0.4.0 (owner brought the AMO keys back in `.env`): Firefox extension signed (unlisted) and embedded,
   installer `dist\odm-setup-0.4.0.exe` (30.4 MB), tag `v0.4.0`. Contents since 0.3.0: video button + HLS,
   bundled ffmpeg / yt-dlp / QuickJS, installer, Settings window, progress windows, download log, queues.

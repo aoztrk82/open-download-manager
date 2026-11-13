@@ -1,0 +1,19 @@
+# ODM as a server: docker compose up -d, then open http://<host>:6800 and
+# enter the token. Put ODM_TOKEN in a .env file next to this one, e.g.
+#   ODM_TOKEN=<output of: openssl rand -hex 32>
+# The browser extension can then send downloads here (Settings > server).
+services:
+  odm:
+    image: aoztrk82/odm:latest
+    container_name: odm
+    restart: unless-stopped
+    ports:
+      - "6800:6800"
+    environment:
+      ODM_TOKEN: ${ODM_TOKEN:?set ODM_TOKEN in .env}
+      TZ: Europe/Istanbul # the Later queue's schedule runs in this time zone
+    volumes:
+      - ./downloads:/downloads # finished files
+      - ./config:/config # database, settings, logs (config/odm/logs/odm.log)
+    # The image runs as uid/gid 1000; with other owners of ./downloads use e.g.
+    # user: "1001:1001"

@@ -53,6 +53,9 @@ internal/applog    download log (slog text lines) in %APPDATA%\odm\logs\odm.log,
 cmd/odm progress   progress_windows.go: tray watches queue events and starts `odm.exe progress <id>` (small
                    WebView2 window on /progress.html, Pause/Cancel/Hide, turns into "download complete" with
                    Open / Show in Folder); taskbar_windows.go = ITaskbarList3 progress (also the main window)
+Dockerfile         server image: odm (cross-compiled, CGO off) + ffmpeg built by tools/ffmpeg/build-linux.sh (same
+                   components.sh as the Windows build.sh) + pinned yt-dlp_linux/qjs (amd64, arm64); uid 1000,
+                   /downloads, /config (XDG_CONFIG_HOME), ODM_TOKEN required. scripts/docker-build.ps1 [-Test|-Push]
 installer/odm.iss  Inno Setup script: odm.exe + ffmpeg.exe, per-user, stops ODM with `odm quit` first
 ```
 - **Distribution is an installer, not a portable exe.** ffmpeg ships inside it (users never install it
@@ -63,6 +66,8 @@ installer/odm.iss  Inno Setup script: odm.exe + ffmpeg.exe, per-user, stops ODM 
   `chrome-extension|moz-extension|safari-web-extension`, `POST /v1/downloads` must be `application/json`.
   Do not weaken this; `internal/api/api_test.go` is the proof. CORS headers are only emitted for trusted origins.
 - **Server mode** (`--listen`): token mandatory (`--token` / `ODM_TOKEN`), `Reveal` (show in folder) disabled.
+  Settings work there too (queues, connections, limits, log) but the download folder stays its `--dir` and
+  category folders must be inside it; the Web UI hides the browser-capture parts (info.anyFolder false).
 - Double-clicking `odm.exe` (no args) -> `tray` (detached) -> daemon + notification-area icon + `window` process.
   The window is a separate process (`odm.exe window`, WebView2, frameless, custom title bar in the Web UI) and
   closes itself when the daemon stops answering. Closing the window does not stop the daemon; "Quit ODM" does.

@@ -30,6 +30,8 @@ type daemonOpts struct {
 	// Local daemon (Reveal): Settings dialog. OnSettings runs after a change.
 	OnSettings func(config.Settings)
 	Autostart  api.Autostart // nil where ODM cannot start with the OS
+	// ShowWindow opens a download's progress window (tray only).
+	ShowWindow func(id string) error
 	// NoIntegrations: a second local daemon on another port. Installing the
 	// browser extensions belongs to the one on the default port they talk to.
 	NoIntegrations bool
@@ -37,12 +39,11 @@ type daemonOpts struct {
 
 // daemon is a running queue + HTTP API. Shared by `odm serve` and the tray app.
 type daemon struct {
-	Addr string
-	http *http.Server
-	q    *queue.Manager
-	st   *store.Store
-	errc chan error
-	// settings is nil for a remote server (its flags are its settings).
+	Addr     string
+	http     *http.Server
+	q        *queue.Manager
+	st       *store.Store
+	errc     chan error
 	settings *settingsStore
 }
 
@@ -60,31 +61,25 @@ func startDaemon(o daemonOpts) (*daemon, error) {
 		return nil, err
 	}
 	qcfg := queue.Config{DefaultDir: o.Dir, MaxConcurrent: o.MaxActive, Connections: o.Connections, RateLimit: o.RateLimit}
-	var sets *settingsStore
+	// Settings: on the local daemon the folder is the user's choice (only an
+	// explicit --dir overrides it); a server always keeps its --dir, and the
+	// API refuses folders outside it.
+	fo := o
 	if o.Reveal {
-		fo := o
-		fo.Dir = flagDir // only an explicit --dir overrides the saved folder
-		sets = newSettingsStore(fo)
-		qcfg = sets.queueConfig(sets.Settings())
+		fo.Dir = flagDir
 	}
-	// The download log: Settings > General on the local daemon; always on for a
-	// server (its operator reads it on the machine).
-	logOn := true
-	if sets != nil {
-		logOn = sets.Settings().Log
-	}
-	applog.Setup(filepath.Join(cfgDir, "logs"), logOn)
+	sets := newSettingsStore(fo)
+	qcfg = sets.queueConfig(sets.Settings())
+	applog.Setup(filepath.Join(cfgDir, "logs"), sets.Settings().Log)
 	applog.L().Info("odm started", "version", api.Version, "addr", o.Addr, "local", o.Reveal)
 	qcfg.Log = applog.L()
 	q := queue.New(qcfg, st, engine.New())
-	if sets != nil {
-		sets.q = q
-	}
+	sets.q = q
 	if err := q.Start(); err != nil {
 		st.Close()
 		return nil, err
 	}
-	srv := &api.Server{Queue: q, Token: o.Token, DefaultDir: o.Dir, Extensions: map[string]string{
+	srv := &api.Server{Queue: q, Token: o.Token, DefaultDir: o.Dir, Settings: sets, Extensions: map[string]string{
 		"chrome": extbundle.ChromeVersion(), "firefox": extbundle.FirefoxVersion(),
 	}}
 	if !o.NoUI {
@@ -98,9 +93,9 @@ func startDaemon(o daemonOpts) (*daemon, error) {
 		srv.AnyDir = true
 		srv.PickFolder = pickFolder
 		srv.Lang = progLang{onChange: o.OnLang}
-		srv.Settings = sets
 		srv.Autostart = o.Autostart
 		srv.Open = openWithDefault
+		srv.ShowWindow = o.ShowWindow
 	}
 	ln, err := net.Listen("tcp", o.Addr)
 	if err != nil {

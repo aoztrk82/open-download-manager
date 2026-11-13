@@ -39,6 +39,17 @@ downloaded by an isolated daemon, the Web UI dialog against an isolated daemon (
 - [ ] "Update yt-dlp" button in the installed program (-U needs a writable install dir; per-user install is).
 - [ ] Owner's own Chrome: YouTube menu -> dialog -> their ODM.
 
+## 0h. 0.5.0 release (prepared, waiting for Docker on this PC)
+Done and tested here: Clear List, double-click window API, server-mode Settings (Go tests + isolated token
+server + screenshot). Windows ffmpeg rebuilt with the shared components.sh.
+Not run yet (no Docker / WSL here): the Dockerfile itself, tools/ffmpeg/build-linux.sh, the Linux yt-dlp/qjs.
+Release steps once Docker Desktop is installed and `docker login` done:
+1. `scripts\docker-build.ps1 -Test` (builds odm:<ver>, runs it on 127.0.0.1:6899 with a token, checks ffmpeg /
+   yt-dlp / qjs / token refusal), fix what breaks.
+2. Bump to 0.5.0 (api.Version + extension/package.json), `pnpm build`, `pnpm sign`, `scripts\build-installer.ps1`.
+3. Commit, tag v0.5.0, push; `scripts\docker-build.ps1 -Push` (amd64 + arm64; Docker Hub repo name: ask the
+   owner, default aoztrk82/odm); `gh release create v0.5.0 dist\odm-setup-0.5.0.exe` with notes.
+
 ## 0g. Queues (sixth session, end)
 Tested: Go tests (order, one at a time, move up/down, later waits, wait between, stop -> back to waiting,
 schedule hook, resume = start now, moves survive a running download's saves), schedule maths (once, daily,

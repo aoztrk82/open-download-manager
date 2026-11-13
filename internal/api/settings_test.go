@@ -109,3 +109,45 @@ func TestLogEndpoints(t *testing.T) {
 		t.Fatalf("server GET /v1/log: %d", got)
 	}
 }
+
+// A server (token mode) has Settings too, but folders stay inside its --dir.
+func TestServerSettingsKeepFolders(t *testing.T) {
+	base := t.TempDir()
+	fs := &fakeSettings{s: config.DefaultSettings()}
+	h := dialogServer(t, &Server{Token: "tok", DefaultDir: base, Settings: fs})
+	auth := map[string]string{"Content-Type": "application/json", "Authorization": "Bearer tok"}
+	inside, _ := json.Marshal(filepath.Join(base, "films"))
+	outside, _ := json.Marshal(filepath.Join(t.TempDir(), "x"))
+	cats := func(dir []byte) string {
+		return `{"categories":[{"id":"video","exts":["mp4"],"dir":` + string(dir) + `}],"defaultDir":` + string(outside) + `}`
+	}
+	if got := do(h, "PUT", "/v1/settings", "files.example.com", auth, cats(outside)).Code; got != 400 {
+		t.Fatalf("category outside the server folder: %d", got)
+	}
+	if got := do(h, "PUT", "/v1/settings", "files.example.com", auth, cats(inside)).Code; got != 200 {
+		t.Fatalf("category inside: %d", got)
+	}
+	if fs.s.DefaultDir != "" {
+		t.Fatalf("a server's download folder changed to %q", fs.s.DefaultDir)
+	}
+	if got := do(h, "GET", "/v1/settings", "files.example.com", map[string]string{}, "").Code; got != 401 {
+		t.Fatalf("settings without the token: %d", got)
+	}
+}
+
+func TestShowWindow(t *testing.T) {
+	var shown string
+	h := dialogServer(t, &Server{AnyDir: true, ShowWindow: func(id string) error { shown = id; return nil }})
+	rec := do(h, "POST", "/v1/downloads", self, jsonHdr, addBody("", true))
+	var d struct{ ID string }
+	_ = json.Unmarshal(rec.Body.Bytes(), &d)
+	if got := do(h, "POST", "/v1/downloads/"+d.ID+"/window", self, jsonHdr, "").Code; got != 204 || shown != d.ID {
+		t.Fatalf("window: %d %q", got, shown)
+	}
+	if got := do(h, "POST", "/v1/downloads/nope/window", self, jsonHdr, "").Code; got != 404 {
+		t.Fatalf("unknown id: %d", got)
+	}
+	if got := do(dialogServer(t, &Server{}), "POST", "/v1/downloads/x/window", self, jsonHdr, "").Code; got != 501 {
+		t.Fatalf("no window support: %d", got)
+	}
+}

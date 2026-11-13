@@ -17,10 +17,35 @@ odm list
 odm watch
 odm pause|resume|rm <id>
 
-odm serve --local                          # 127.0.0.1:6800, token in %APPDATA%\odm\token
+odm serve --local                          # 127.0.0.1:6800, no token (loopback and extensions only)
 odm serve --listen :6800 --token SECRET    # remote server (+ Web UI at /)
 odm --server http://host:6800 --token SECRET add <url>
 ```
+
+## Windows
+
+Install with `odm-setup-<version>.exe` from the GitHub releases (per user, no admin rights). It brings ODM, a small
+ffmpeg, yt-dlp and QuickJS; the browser extensions are installed from ODM (Settings > General).
+
+## Docker (server)
+
+The image runs ODM as a server with its Web UI, yt-dlp (+ QuickJS) and a small ffmpeg, for amd64 and arm64.
+A token is required:
+
+```
+docker run -d --name odm -p 6800:6800 \
+  -e ODM_TOKEN=$(openssl rand -hex 32) -e TZ=Europe/Istanbul \
+  -v ./downloads:/downloads -v ./config:/config \
+  aoztrk82/odm:latest
+```
+
+or `docker compose up -d` with [docker-compose.yml](docker-compose.yml) and `ODM_TOKEN=...` in a `.env` file.
+Open `http://<host>:6800`, enter the token. Files land in `/downloads`; the database, settings and the download log
+(`/config/odm/logs/odm.log`) in `/config`. The container runs as uid 1000. Building it yourself:
+`docker build -t odm .` or `scripts\docker-build.ps1 [-Test] [-Push]`.
+
+In the browser extension's settings add the server URL and the token; each captured download then asks: this
+computer or the server.
 
 ## Browser extensions
 

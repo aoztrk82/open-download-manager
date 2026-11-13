@@ -49,6 +49,7 @@ function check(name, keys, src, dynamic) {
     "cs.": ["waiting", "connecting", "active", "retrying", "done", "stopped", "failed"],
     "set.tab.": ["general", "types", "save", "downloads", "conn", "queue", "log"],
     "add.when.": ["now", "main", "later", "paused"],
+    "clr.": ["completed", "failed", "paused"],
     "cat.": ["video", "music", "compressed", "documents", "programs", "images"],
   });
 }

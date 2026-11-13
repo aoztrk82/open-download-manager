@@ -57,6 +57,9 @@ type Server struct {
 	Autostart Autostart
 	// Open opens a finished file with its default program (local daemon only).
 	Open func(path string) error
+	// ShowWindow opens the progress (or complete) window of a download: the
+	// tray daemon on Windows. Elsewhere the Web UI opens progress.html itself.
+	ShowWindow func(id string) error
 
 	seenMu sync.Mutex
 	seen   map[string]Seen
@@ -71,6 +74,7 @@ type Info struct {
 	CanPickDir   bool              `json:"canPickFolder"`
 	CanSettings  bool              `json:"canSettings"`    // GET/PUT /v1/settings
 	CanOpen      bool              `json:"canOpen"`        // POST /v1/downloads/{id}/open
+	CanWindow    bool              `json:"canWindow"`      // POST /v1/downloads/{id}/window
 	AnyDir       bool              `json:"anyFolder"`      // false: folders must be inside defaultDir
 	Lang         string            `json:"lang,omitempty"` // local daemon: the program's UI language
 	Extensions   map[string]string `json:"extensions"`
@@ -148,6 +152,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/downloads/{id}/resume", s.act(s.Queue.Resume))
 	mux.HandleFunc("POST /v1/downloads/{id}/reveal", s.reveal)
 	mux.HandleFunc("POST /v1/downloads/{id}/open", s.openFile)
+	mux.HandleFunc("POST /v1/downloads/{id}/window", s.showWindow)
 	mux.HandleFunc("POST /v1/downloads/{id}/queue", s.setQueue)
 	mux.HandleFunc("POST /v1/downloads/{id}/move", s.moveInQueue)
 	mux.HandleFunc("GET /v1/queues", s.queues)
@@ -270,7 +275,7 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 	_, ytErr := ytdlp.Find()
 	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.defaultDir(), Lang: lang,
 		CanReveal: s.Reveal != nil, CanIntegrate: s.Integrations != nil, CanPickDir: s.PickFolder != nil,
-		CanSettings: s.Settings != nil, CanOpen: s.Open != nil,
+		CanSettings: s.Settings != nil, CanOpen: s.Open != nil, CanWindow: s.ShowWindow != nil,
 		AnyDir: s.AnyDir, Extensions: ext, FFmpeg: ffErr == nil, Ytdlp: ytErr == nil})
 }
 

@@ -10,8 +10,9 @@ import (
 	"github.com/aoztrk82/open-download-manager/internal/store"
 )
 
-// SettingsStore keeps the Settings dialog's choices (local daemon only: a
-// remote server's limits and folders are its operator's business).
+// SettingsStore keeps the Settings dialog's choices. On a server (token
+// mode) folders stay inside its download folder; browser and file-type rules
+// only matter on the local daemon the extensions talk to.
 type SettingsStore interface {
 	Settings() config.Settings
 	// SetSettings saves normalized settings and applies them (queue, tray).
@@ -79,6 +80,17 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err.Error())
 		return
 	}
+	if !s.AnyDir {
+		// A server: the token lets people download, not write anywhere. Its
+		// download folder is its --dir; category folders must stay inside it.
+		clean.DefaultDir = ""
+		for _, c := range clean.Categories {
+			if _, err := s.checkDir(c.Dir); err != nil {
+				writeErr(w, 400, c.ID+": "+err.Error())
+				return
+			}
+		}
+	}
 	if err := s.Settings.SetSettings(clean); err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -94,10 +106,34 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 
 // defaultDir is where downloads go when no folder is given.
 func (s *Server) defaultDir() string {
-	if s.Settings != nil {
+	if s.Settings != nil && s.AnyDir { // a server always keeps its own folder
+		return s.Settings.Settings().Dir()
+	}
+	if s.Settings != nil && s.DefaultDir == "" {
 		return s.Settings.Settings().Dir()
 	}
 	return s.DefaultDir
+}
+
+// showWindow opens a download's progress window (double-click in the list).
+func (s *Server) showWindow(w http.ResponseWriter, r *http.Request) {
+	if s.ShowWindow == nil {
+		writeErr(w, http.StatusNotImplemented, "progress windows are only available in the desktop app")
+		return
+	}
+	if !requireJSON(w, r) {
+		return
+	}
+	d, err := s.Queue.Get(r.PathValue("id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	if err := s.ShowWindow(d.ID); err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // openFile opens a finished download with its default program (the

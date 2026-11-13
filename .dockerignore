@@ -1,0 +1,10 @@
+# Only cmd/, internal/, tools/ffmpeg and go.mod/go.sum are needed (see Dockerfile).
+.git
+.env
+.claude
+dist
+extension/node_modules
+extension/dist
+*.exe
+*.db
+*.log
