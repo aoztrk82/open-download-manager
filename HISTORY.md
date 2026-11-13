@@ -40,7 +40,20 @@ Newest first. Commit hashes refer to `git log`.
   resolution (YouTube's default pick was AV1, which older Windows cannot play). Web UI: "yt-dlp" toolbar
   button / Ctrl+Shift+N dialog (quality, MP4/MKV, folder, playlist with select-all and a subfolder, "Update
   yt-dlp"). Extension: "yt-dlp ile" entries (best/1080/720/480/audio) on YouTube and similar sites, or when a
-  page offers nothing else.
+  page offers nothing else. Owner ran QuickJS: works; our sort picks H.264 https DASH (not the larger HLS).
+- Settings (owner: "tabs: general, file types, save, downloads, connection; a progress dialog with Windows
+  progress, and settings to show it / a done dialog"). Settings live in prefs.json (`config.Settings`), local
+  daemon only (`/v1/settings`), applied without restart: download folder and category folders (a category
+  without its own folder follows the download folder), downloads at once, connections + per-site exceptions,
+  per-download and a shared total speed limit (`engine/limit.go`, also yt-dlp `--limit-rate`). The extensions
+  fetch the capture rules (which browsers, types the browser keeps, types/sites without the dialog, sites never
+  captured) from ODM. Integrations moved from the menu into Settings > General. Progress windows are separate
+  `odm.exe progress <id>` processes started by the tray (`/progress.html`, taskbar progress via ITaskbarList3).
+- Test incident: an end-to-end script clicked the first "primary" button in the Settings dialog, which was
+  "Install in Firefox", and the test daemon opened the owner's Firefox (closed again by its PID) and saved a
+  test file to the real Downloads (deleted). Fixed the cause: dialog Enter/primary only means the footer
+  button (real users would have hit it with Enter too); a second local daemon (`--local --listen`) has no
+  integrations; tests pass `--dir`.
 
 ## 2026-11-12 - fifth session
 - Dynamic connections (owner: "why always 4?"). The engine starts with one segment and 2 connections, adds a

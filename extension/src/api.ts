@@ -2,7 +2,7 @@
 // local app, and status reporting. Same HTTP protocol the Go CLI and Web UI use.
 import { ext } from "./ext";
 import { setLang, t } from "./i18n";
-import { human } from "./util";
+import { human, type CaptureRules } from "./util";
 
 export { ext };
 
@@ -112,6 +112,8 @@ export interface Info {
   ffmpeg?: boolean;
   /** The daemon has yt-dlp (YouTube and other sites). */
   ytdlp?: boolean;
+  /** Local daemon with a Settings dialog (GET /v1/settings). */
+  canSettings?: boolean;
 }
 
 export interface Probe {
@@ -168,6 +170,8 @@ export class OdmClient {
   add(request: DownloadRequest, o: AddOptions = {}) {
     return this.call<Download>("POST", "/downloads", { request, filename: o.filename, dir: o.dir, paused: o.paused });
   }
+  /** The local daemon's Settings (capture rules, category folders). */
+  settings(timeoutMs = 5_000) { return this.call<CaptureRules>("GET", "/settings", undefined, timeoutMs); }
   probe(request: DownloadRequest) { return this.call<Probe>("POST", "/probe", { request }, 15_000); }
   /** Native folder chooser on the local daemon; "" when cancelled. Waits for the user. */
   pickFolder(initial: string) {

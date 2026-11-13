@@ -39,6 +39,29 @@ downloaded by an isolated daemon, the Web UI dialog against an isolated daemon (
 - [ ] "Update yt-dlp" button in the installed program (-U needs a writable install dir; per-user install is).
 - [ ] Owner's own Chrome: YouTube menu -> dialog -> their ODM.
 
+## 0e. Settings window + progress windows (sixth session, 2026-11-13)
+Owner's request: a tabbed Settings dialog (General / File Types / Save / Downloads / Connection), browser
+integrations moved there from the menu, a progress window per download with Windows taskbar progress and a
+"download complete" window, both switchable in Settings.
+Tested here (isolated `serve --local --listen 127.0.0.1:6899 --dir <temp>`, headless Chrome, screenshots looked
+right): every tab renders in Turkish; saving writes prefs.json and applies live; a relative folder is refused in
+the dialog; category folders follow the download folder; a .zip went to `Compressed`; a 512 KiB/s total limit
+held (4 MiB in 7.2 s); progress.html showed speed/time left/resumable and turned into the complete view.
+Go tests: settings normalize/merge, API (415/403/400, partial PUT), shared limiter, extension rule helpers.
+Not tested (needs the owner, opens windows):
+- [ ] Real progress window (`odm.exe progress <id>` from the tray): opens on a new download, title "45% name",
+      **taskbar button progress** (green/yellow paused/red error; COM ITaskbarList3, never run), Pause/Cancel/
+      Hide, "complete" window with Open / Show in Folder, "don't show again". Main window taskbar progress too.
+- [ ] Settings > General in the tray daemon: "Start with Windows" (tray checkbox follows), language switch,
+      browser extension rows (moved from the old Integrations menu).
+- [ ] Extension with the new ODM: Firefox unchecked -> Firefox keeps its downloads; pdf in "browser types" ->
+      browser saves it; a site in "start without asking" -> no dialog; category folder prefilled in the dialog.
+      Chrome often has no file name at onCreated: the MIME type is used then (pdf, zip, exe, ... see util.ts).
+- Known limits: rules are cached up to 30 s in the extension (and the last known rules apply while ODM is
+  closed); the total speed limit does not reach yt-dlp (separate process; it gets the per-download limit);
+  at most 6 progress windows per 10 minutes (long playlists); downloads resumed automatically at start-up get
+  no progress window (only their complete window).
+
 ## 0c. Installer + bundled ffmpeg (sixth session, built, never installed)
 `scripts\build-installer.ps1` -> `dist\odm-setup-0.3.0.exe` (7.5 MB). ffmpeg 9.0.2 built from the signed release
 tarball, LGPL, remux-only + probing decoders, 4 MB, imports only system DLLs. Tested: TS / fMP4 / AES-128 HLS

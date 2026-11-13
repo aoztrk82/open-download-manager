@@ -12,8 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/time/rate"
-
 	"github.com/aoztrk82/open-download-manager/internal/proto"
 )
 
@@ -48,7 +46,7 @@ type pool struct {
 	f      *os.File
 	st     *State
 	mu     *sync.Mutex
-	lim    *rate.Limiter
+	lim    limiters
 
 	// guarded by mu, index-aligned with st.Segments
 	owned    []bool
@@ -246,10 +244,8 @@ func (p *pool) copySegment(rc io.Reader, i int, buf []byte) error {
 	for {
 		n, rerr := rc.Read(buf)
 		if n > 0 {
-			if p.lim != nil {
-				if err := p.lim.WaitN(p.ctx, n); err != nil {
-					return err
-				}
+			if err := p.lim.wait(p.ctx, n); err != nil {
+				return err
 			}
 			p.mu.Lock()
 			sg := p.st.Segments[i]

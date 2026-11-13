@@ -14,8 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/time/rate"
-
 	"github.com/aoztrk82/open-download-manager/internal/ffmpeg"
 	"github.com/aoztrk82/open-download-manager/internal/hls"
 	"github.com/aoztrk82/open-download-manager/internal/proto"
@@ -111,10 +109,7 @@ func (e *Engine) runHLS(ctx context.Context, st *State, o Options, src proto.Sou
 		}
 	}
 
-	var lim *rate.Limiter
-	if o.RateLimit > 0 {
-		lim = rate.NewLimiter(rate.Limit(o.RateLimit), max(int(o.RateLimit), 32<<10))
-	}
+	lim := o.limiters()
 	var (
 		mu       sync.Mutex
 		inflight atomic.Int64 // bytes of pieces still being fetched
@@ -269,7 +264,7 @@ func fetchText(ctx context.Context, src proto.Source, req proto.Request) (string
 
 // fetchPiece downloads one item to path (via path+".tmp"), with retries.
 // Bytes in flight are counted in inflight for the progress display.
-func fetchPiece(ctx context.Context, src proto.Source, req proto.Request, it hls.Item, path string, retries int, lim *rate.Limiter, inflight *atomic.Int64) (int64, error) {
+func fetchPiece(ctx context.Context, src proto.Source, req proto.Request, it hls.Item, path string, retries int, lim limiters, inflight *atomic.Int64) (int64, error) {
 	var last error
 	for attempt := 1; attempt <= retries; attempt++ {
 		if attempt > 1 {
@@ -291,7 +286,7 @@ func fetchPiece(ctx context.Context, src proto.Source, req proto.Request, it hls
 	return 0, last
 }
 
-func fetchOnce(ctx context.Context, src proto.Source, req proto.Request, it hls.Item, path string, lim *rate.Limiter, inflight *atomic.Int64) (n int64, err error) {
+func fetchOnce(ctx context.Context, src proto.Source, req proto.Request, it hls.Item, path string, lim limiters, inflight *atomic.Int64) (n int64, err error) {
 	rc, err := src.Open(ctx, req, it.Offset, it.Length)
 	if err != nil {
 		return 0, err
@@ -313,10 +308,8 @@ func fetchOnce(ctx context.Context, src proto.Source, req proto.Request, it hls.
 	for {
 		k, rerr := rc.Read(buf)
 		if k > 0 {
-			if lim != nil {
-				if err := lim.WaitN(ctx, min(k, lim.Burst())); err != nil {
-					return n, err
-				}
+			if err := lim.wait(ctx, k); err != nil {
+				return n, err
 			}
 			if _, err := f.Write(buf[:k]); err != nil {
 				return n, err

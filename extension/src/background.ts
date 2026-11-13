@@ -1,8 +1,10 @@
 import {
+  browserId,
   clientFor,
   ext,
   loadSettings,
   localClient,
+  nameFromUrl,
   remoteOf,
   report,
   scratch,
@@ -13,7 +15,7 @@ import {
   type Settings,
 } from "./api";
 import { t } from "./i18n";
-import { dispositionName } from "./util";
+import { captureDecision, dispositionName, type CaptureRules } from "./util";
 
 const CAPTURE_SCHEMES = ["http:", "https:", "ftp:"];
 
@@ -28,6 +30,7 @@ const settings = () =>
     return s;
   }));
 ext.storage.onChanged.addListener((changes) => {
+  if (Object.keys(changes).every((k) => k === RULES_KEY)) return; // our own rules cache
   cached = null;
   void settings().then(() => {
     if (changes.language) ext.contextMenus.update("odm-link", { title: t("bg.menu") }).catch(() => {});
@@ -40,6 +43,37 @@ void settings();
 localClient()
   .info()
   .catch(() => {});
+
+// ODM's Settings (which browsers, file types and sites it takes) live in the
+// program, not here. They are fetched from the local ODM and cached, so the
+// last known rules still apply while ODM is closed.
+const RULES_KEY = "odmRules";
+const RULES_FRESH = 30_000;
+let rules: CaptureRules | null = null;
+let rulesAt = 0;
+const rulesLoaded = ext.storage.local.get({ [RULES_KEY]: null }).then((v) => {
+  rules ??= (v[RULES_KEY] as CaptureRules | null) ?? null;
+});
+/**
+ * Rules, refreshed when older than RULES_FRESH. The wait is short: on Windows
+ * connecting to a closed port takes seconds, and the browser keeps
+ * downloading meanwhile.
+ */
+async function freshRules(): Promise<CaptureRules | null> {
+  await rulesLoaded;
+  if (Date.now() - rulesAt < RULES_FRESH) return rules;
+  rulesAt = Date.now() - RULES_FRESH + 5_000; // failed or slow: try again in 5 s
+  try {
+    const r = await localClient().settings(400);
+    rules = r;
+    rulesAt = Date.now();
+    void ext.storage.local.set({ [RULES_KEY]: r });
+  } catch {
+    /* ODM closed or an older ODM: the last known rules */
+  }
+  return rules;
+}
+void freshRules();
 
 // URLs the webRequest path already handed to ODM; onCreated must not take them again.
 const taken = new Map<string, number>();
@@ -158,7 +192,7 @@ interface HeadersDetails {
 
 type BlockingResponse = { cancel?: boolean };
 
-function onHeaders(d: HeadersDetails): BlockingResponse {
+function onHeaders(d: HeadersDetails): BlockingResponse | Promise<BlockingResponse> {
   const s = current;
   if (!s || !s.enabled) return {};
   if (d.method !== "GET" || d.statusCode !== 200) return {}; // 3xx: wait for the final hop
@@ -173,19 +207,25 @@ function onHeaders(d: HeadersDetails): BlockingResponse {
   if (!isDownloadResponse(d.responseHeaders)) return {};
   const hints = hintsFromHeaders(d.responseHeaders);
   if (s.minSizeMB > 0 && hints.size && hints.size < s.minSizeMB * 1024 * 1024) return {};
+  const page = d.originUrl || d.documentUrl;
 
-  taken.set(d.url, Date.now() + 10_000);
-  console.log(`[ODM] webRequest took ${d.url}`);
-  // Hand off after returning: starting ODM or opening the dialog takes time
-  // and the request must not hang meanwhile.
-  void (async () => {
-    try {
-      await handOff(await buildRequest(d.url, d.originUrl || d.documentUrl), hints, s);
-    } catch (e) {
-      await report(false, t("bg.error", { err: (e as Error).message }));
-    }
-  })();
-  return { cancel: true };
+  const decide = (r: CaptureRules | null): BlockingResponse => {
+    const how = captureDecision(r, browserId(), d.url, page, hints.filename || nameFromUrl(d.url), hints.mime);
+    if (how === "browser") return {};
+    taken.set(d.url, Date.now() + 10_000);
+    console.log(`[ODM] webRequest took ${d.url} (${how})`);
+    // Hand off after returning: starting ODM or opening the dialog takes time
+    // and the request must not hang meanwhile.
+    void (async () => {
+      try {
+        await handOff(await buildRequest(d.url, page), hints, s, how === "auto");
+      } catch (e) {
+        await report(false, t("bg.error", { err: (e as Error).message }));
+      }
+    })();
+    return { cancel: true };
+  };
+  return Date.now() - rulesAt < RULES_FRESH ? decide(rules) : freshRules().then(decide);
 }
 
 const webRequest = (ext as unknown as {
@@ -222,8 +262,9 @@ if (webRequest?.onHeadersReceived) {
  * computer or the server) before anything starts. With asking turned off it
  * goes straight to the default destination.
  */
-async function handOff(req: DownloadRequest, hints: Hints, s: Settings) {
-  if (s.askBeforeDownload) {
+async function handOff(req: DownloadRequest, hints: Hints, s: Settings, auto = false) {
+  // auto: ODM's Settings say this type or site starts without asking.
+  if (s.askBeforeDownload && !auto) {
     await openDialog(req, hints);
     return;
   }
@@ -289,6 +330,9 @@ ext.downloads.onCreated.addListener(async (item) => {
     if (!CAPTURE_SCHEMES.includes(scheme)) return; // blob:, data:, etc. stay in the browser
     const size = item.fileSize > 0 ? item.fileSize : item.totalBytes > 0 ? item.totalBytes : 0;
     if (s.minSizeMB > 0 && size > 0 && size < s.minSizeMB * 1024 * 1024) return;
+    const name = baseName(item.filename) || nameFromUrl(url);
+    const how = captureDecision(await freshRules(), browserId(), url, item.referrer, name, item.mime);
+    if (how === "browser") return;
 
     // Cancel first, before any network call; otherwise a small file is already
     // saved by the time ODM answers and you end up with two copies.
@@ -300,7 +344,7 @@ ext.downloads.onCreated.addListener(async (item) => {
       await report(false, t("bg.kept", { why: failed.join("; ") }));
     }
     const hints: Hints = { filename: baseName(item.filename) || undefined, size: size || undefined, mime: item.mime || undefined };
-    await handOff(await buildRequest(url, item.referrer), hints, s);
+    await handOff(await buildRequest(url, item.referrer), hints, s, how === "auto");
   } catch (e) {
     await report(false, t("bg.error", { err: (e as Error).message }));
   }

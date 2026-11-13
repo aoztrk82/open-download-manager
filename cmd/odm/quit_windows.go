@@ -72,7 +72,7 @@ func quitCmd() *cobra.Command {
 		Hidden: true,
 		Short:  "Stop the running tray app and window (used by the installer)",
 		RunE: func(*cobra.Command, []string) error {
-			if !mutexExists(trayMutex) && !mutexExists(windowMutex) {
+			if !mutexExists(trayMutex) && !mutexExists(windowMutex) && !mutexExists(progressMutex) {
 				return nil // nothing running
 			}
 			name, _ := windows.UTF16PtrFromString(quitEvent)
@@ -85,7 +85,7 @@ func quitCmd() *cobra.Command {
 				return fmt.Errorf("quit event: %w", err)
 			}
 			deadline := time.Now().Add(wait)
-			for mutexExists(trayMutex) || mutexExists(windowMutex) {
+			for mutexExists(trayMutex) || mutexExists(windowMutex) || mutexExists(progressMutex) {
 				if time.Now().After(deadline) {
 					return errors.New("ODM did not exit in time")
 				}

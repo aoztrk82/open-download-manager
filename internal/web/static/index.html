@@ -158,6 +158,8 @@
   .dialog .body { padding:14px; display:flex; flex-direction:column; gap:10px; }
   .dialog label { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:12px; }
   .dialog input, .dialog textarea { background:var(--input); border:1px solid var(--line); border-radius:3px; padding:6px 8px; user-select:text; }
+  /* fields sit inside muted labels: their own text stays in the normal color */
+  .dialog input, .dialog textarea, .dialog select { color:var(--fg); }
   .dialog textarea { min-height:90px; resize:vertical; }
   .dialog input:focus, .dialog textarea:focus { outline:1px solid var(--accent); }
   .dialog .foot { display:flex; justify-content:flex-end; gap:8px; padding:10px 14px; border-top:1px solid var(--line); }
@@ -189,6 +191,26 @@
 .yt-tools { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--muted); }
 .yt-tools .grow { flex:1; }
 .btn.small { padding:2px 10px; font-size:12px; }
+.dialog.settings { width:min(760px, 96vw); }
+.dialog.settings .body { height:min(560px, 72vh); overflow:auto; padding-top:0; }
+.stabs { display:flex; gap:2px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--panel); z-index:1; margin:0 -14px; padding:8px 14px 0; }
+.stab { border:1px solid transparent; border-bottom:0; background:none; padding:6px 14px; cursor:pointer; color:var(--muted); border-radius:3px 3px 0 0; margin-bottom:-1px; }
+.stab:hover { color:var(--fg); }
+.stab:focus { outline:none; } .stab:focus-visible { outline:1px solid var(--accent); outline-offset:-2px; }
+.stab.on { background:var(--bg); color:var(--fg-strong); border-color:var(--line); border-bottom:1px solid var(--bg); }
+.spane { display:flex; flex-direction:column; gap:10px; padding-top:4px; }
+.sgroup { display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--line); padding-top:10px; }
+.sgroup .sh { color:var(--fg-strong); font-weight:600; }
+.srow { display:flex; gap:18px; flex-wrap:wrap; }
+.shint { color:var(--muted); font-size:12px; margin-top:-4px; }
+.cattbl { overflow-x:auto; }
+.cattbl table { table-layout:auto; }
+.cattbl th { position:static; background:none; border-right:0; padding:4px 6px; font-size:12px; color:var(--muted); }
+.cattbl td { padding:3px 6px 3px 0; overflow:visible; }
+.cattbl td:first-child { padding-left:6px; white-space:nowrap; }
+.cattbl input { width:100%; min-width:120px; }
+.cattbl td:nth-child(3) { width:50%; }
+.hrow { display:flex; gap:6px; margin-bottom:6px; } .hrow .h-host { flex:1; min-width:0; }
 .integ { display:flex; flex-direction:column; gap:8px; }
   .integ .row { border:1px solid var(--line); border-radius:3px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
   .integ .head { display:flex; align-items:center; gap:10px; }
@@ -235,10 +257,8 @@
     <div class="item check lang" data-act="lang" data-lang="tr"><span>Türkçe</span></div>
   </div></div>
   <div class="menu" data-menu="tools"><div class="title" data-i18n="menu.tools">Tools</div><div class="dropdown">
+    <div class="item" data-act="settings" data-needs="settings" hidden><span data-i18n="m.settings">Settings…</span><span class="key">Ctrl+,</span></div>
     <div class="item" data-act="signout"><span data-i18n="m.token">Change Server Token…</span></div>
-  </div></div>
-  <div class="menu" data-menu="integrations" data-needs="integrate" hidden><div class="title" data-i18n="menu.integrations">Integrations</div><div class="dropdown">
-    <div class="item" data-act="integrations"><span data-i18n="m.integrations">Browser Extensions…</span></div>
   </div></div>
   <div class="menu" data-menu="help"><div class="title" data-i18n="menu.help">Help</div><div class="dropdown">
     <div class="item" data-act="about"><span data-i18n="m.about">About ODM</span></div>
@@ -258,6 +278,8 @@
   <button class="tb" data-act="resume" id="tb-resume" data-i18n-title="m.resume" title="Resume"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg><span data-i18n="m.resume">Resume</span></button>
   <button class="tb" data-act="pause" id="tb-pause" data-i18n-title="m.pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg><span data-i18n="m.pause">Pause</span></button>
   <button class="tb" data-act="remove" id="tb-remove" data-i18n-title="tb.removeTitle" title="Remove (Del)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg><span data-i18n="m.remove">Remove</span></button>
+  <div class="vsep" data-needs="settings" hidden></div>
+  <button class="tb" data-act="settings" data-needs="settings" data-i18n-title="tb.settingsTitle" title="Settings (Ctrl+,)" hidden><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span data-i18n="tb.settings">Settings</span></button>
   <input id="search" type="search" data-i18n-ph="search.ph" placeholder="Filter downloads…">
 </div>
 
@@ -451,12 +473,27 @@ function render() {
   const total = items.reduce((a, d) => a + bps(d), 0);
   $("s-speed").textContent = t("st.down", { speed:fmtBytes(total) });
   $("s-count").textContent = t("st.count", { active:cnt.active, completed:cnt.completed, total:items.length });
+  taskbarProgress();
   // toolbar state
   const sel = items.filter(d => selected.has(d.id));
   $("tb-pause").disabled = !sel.some(d => d.status === "active" || d.status === "queued");
   $("tb-resume").disabled = !sel.some(d => d.status === "paused" || d.status === "failed");
   $("tb-remove").disabled = sel.length === 0;
   renderDetails(sel);
+}
+
+// Desktop window: overall progress of running downloads on the taskbar button.
+let lastBar = "";
+function taskbarProgress() {
+  if (typeof window.odmProgress !== "function") return;
+  const run = items.filter(d => d.status === "active");
+  const sized = run.filter(d => d.size > 0);
+  const done = sized.reduce((a, d) => a + d.downloaded, 0), total = sized.reduce((a, d) => a + d.size, 0);
+  const state = !run.length ? "none" : total > 0 ? "normal" : "indeterminate";
+  const key = state + ":" + Math.floor(total ? done * 1000 / total : 0);
+  if (key === lastBar) return;
+  lastBar = key;
+  window.odmProgress(state, done, total, "");
 }
 
 function renderDetails(sel) {
@@ -570,6 +607,7 @@ const applyInfo = () => {
   $$("[data-needs=reveal]").forEach(el => { el.hidden = !(info && info.canReveal); });
   $$("[data-needs=integrate]").forEach(el => { el.hidden = !(info && info.canIntegrate); });
   $$("[data-needs=ytdlp]").forEach(el => { el.hidden = !(info && info.ytdlp); });
+  $$("[data-needs=settings]").forEach(el => { el.hidden = !(info && info.canSettings); });
 };
 const toast = msg => { $("s-dir").textContent = msg; setTimeout(() => { $("s-dir").textContent = dirLabel(); }, 4000); };
 const dirLabel = () => info ? t("st.saving", { dir:info.defaultDir }) : "";
@@ -595,7 +633,8 @@ const actions = {
   theme: () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"),
   signout: () => promptToken(true),
   about: () => aboutDialog(),
-  integrations: () => integrationsDialog(),
+  integrations: () => settingsDialog("general"),
+  settings: () => settingsDialog(),
   lang: el => setLang(el.dataset.lang),
   resetLayout: () => {
     for (const k of ["odm.size.sidebar", "odm.size.details", "odm.cols"]) store.set(k, "");
@@ -635,15 +674,16 @@ function dialog(title, bodyHtml, buttons, onClose) {
   ov.onmousedown = e => { if (e.target === ov) dismiss(); };
   el.onkeydown = e => {
     if (e.key === "Escape") { e.stopPropagation(); dismiss(); }
-    else if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); el.querySelector(".btn.primary")?.click(); }
+    // Only the footer's button: the body may hold other primary buttons (Settings > browser extensions).
+    else if (e.key === "Enter" && e.target.tagName === "INPUT" && e.target.type !== "checkbox") { e.preventDefault(); el.querySelector(".foot .btn.primary")?.click(); }
     else if (e.key === "Tab") {                  // keep focus inside the dialog
-      const f = [...el.querySelectorAll("button,input,textarea")].filter(x => !x.disabled);
+      const f = [...el.querySelectorAll("button,input,textarea,select")].filter(x => !x.disabled && x.offsetParent);
       const i = f.indexOf(document.activeElement);
       if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
       else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
     }
   };
-  (el.querySelector("textarea,input") || el.querySelector(".btn.primary") || el.querySelector(".x")).focus();
+  (el.querySelector("textarea,input") || el.querySelector(".foot .btn.primary") || el.querySelector(".x")).focus();
   return close;
 }
 function addDialog() {
@@ -857,14 +897,11 @@ function aboutDialog() {
 // Browser extensions ship inside odm.exe and are installed from here, so the
 // extension version always follows the program (no store auto-updates).
 const BROWSER_NAMES = { firefox:"Firefox", chrome:"Chrome", edge:"Edge" };
-async function integrationsDialog() {
-  dialog(t("int.title"), `<div class="integ" id="i-list">${t("conn.loading")}</div><div class="err" id="i-err"></div>`, [{ label:t("btn.close"), primary:true }]);
-  const el = $("dlg");
-  el.querySelector(".dialog").classList.add("wide");
-  const err = el.querySelector("#i-err");
+// Rendered into Settings > General (the box and error line live there).
+async function renderIntegrations(box, err) {
   let list;
   try { list = await api("/integrations"); } catch (e) { err.textContent = e.message; return; }
-  const box = el.querySelector("#i-list"); if (!box) return; // dialog closed meanwhile
+  if (!box.isConnected) return; // dialog closed meanwhile
   box.innerHTML = list.map(it => {
     const name = BROWSER_NAMES[it.id] || it.id;
     let st, cls;
@@ -898,6 +935,129 @@ async function integrationsDialog() {
     } catch (ex) { err.textContent = ex.message; }
   };
 }
+/* ---------- settings ---------- */
+// Local daemon only (info.canSettings). Saved in prefs.json and applied at once;
+// file-type and site rules are read by the browser extensions when they capture.
+const SET_TABS = ["general", "types", "save", "downloads", "conn"];
+const lines = s => s.split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
+async function settingsDialog(tab = store.get("odm.settab") || "general") {
+  let cur;
+  try { cur = await api("/settings"); } catch (e) { toast(e.message); return; }
+  if (!SET_TABS.includes(tab)) tab = "general";
+  const sep = (cur.defaultDir || info.defaultDir || "").includes("/") ? "/" : "\\";
+  const browse = id => info.canPickFolder ? `<button type="button" class="btn" data-browse="${id}">${t("add.browse")}</button>` : "";
+  const connOpts = sel => Array.from({ length:32 }, (_, i) => `<option value="${i + 1}"${sel === i + 1 ? " selected" : ""}>${i + 1}</option>`).join("");
+  const hostRow = (h = { host:"", connections:4 }) => `<div class="hrow"><input class="h-host" placeholder="example.com" value="${esc(h.host)}">
+    <select class="h-conns">${connOpts(h.connections)}</select><button type="button" class="btn small" data-del-host title="${t("set.remove")}">✕</button></div>`;
+  const cats = (cur.categories || []).map(c => `<tr data-cat="${esc(c.id)}"><td>${t("cat." + c.id)}</td>
+    <td><input class="c-exts" value="${esc(c.exts.join(" "))}"></td>
+    <td><span class="dirrow"><input class="c-dir" id="c-dir-${esc(c.id)}" data-folder="${esc((cur.categoryFolders || {})[c.id] || "")}" value="${esc(c.dir)}">${browse("c-dir-" + c.id)}</span></td></tr>`).join("");
+  const browsers = ["chrome", "edge", "firefox"].map(b => `<label class="chk"><input type="checkbox" data-cap="${b}"${cur.capture && cur.capture[b] === false ? "" : " checked"}> ${BROWSER_NAMES[b]}</label>`).join("");
+  const body = `
+    <div class="stabs" role="tablist">${SET_TABS.map(x => `<button type="button" class="stab" role="tab" data-stab="${x}">${t("set.tab." + x)}</button>`).join("")}</div>
+    <div class="spane" data-pane="general">
+      ${cur.autostart === undefined ? "" : `<label class="chk"><input type="checkbox" id="o-auto"${cur.autostart ? " checked" : ""}> ${t("set.autostart")}</label>`}
+      <label>${t("set.lang")}<select id="o-lang"><option value="en">English</option><option value="tr">Türkçe</option></select></label>
+      <div class="sgroup"><div class="sh">${t("set.capture")}</div><div class="srow">${browsers}</div><div class="shint">${t("set.captureHint")}</div></div>
+      <div class="sgroup"><div class="sh">${t("int.title")}</div><div class="integ" id="i-list">${t("conn.loading")}</div><div class="err" id="i-err"></div></div>
+    </div>
+    <div class="spane" data-pane="types">
+      <div class="shint">${t("set.typesHint")}</div>
+      <label>${t("set.browserTypes")}<input id="o-btypes" placeholder="pdf, epub" value="${esc((cur.browserTypes || []).join(", "))}"></label>
+      <label>${t("set.autoTypes")}<input id="o-atypes" placeholder="zip, iso" value="${esc((cur.autoTypes || []).join(", "))}"></label>
+      <label>${t("set.autoSites")}<textarea id="o-asites" placeholder="downloads.example.com">${esc((cur.autoSites || []).join("\n"))}</textarea></label>
+      <label>${t("set.skipSites")}<textarea id="o-ssites" placeholder="example.org">${esc((cur.skipSites || []).join("\n"))}</textarea></label>
+    </div>
+    <div class="spane" data-pane="save">
+      <label>${t("set.dir")}<span class="dirrow"><input id="o-dir" value="${esc(cur.defaultDir || info.defaultDir)}">${browse("o-dir")}</span></label>
+      <label class="chk"><input type="checkbox" id="o-cats"${cur.useCategories ? " checked" : ""}> ${t("set.useCats")}</label>
+      <div class="shint">${t("set.catsHint")}</div>
+      <div class="cattbl"><table><thead><tr><th>${t("set.cat")}</th><th>${t("set.exts")}</th><th>${t("set.folder")}</th></tr></thead><tbody>${cats}</tbody></table></div>
+    </div>
+    <div class="spane" data-pane="downloads">
+      <label>${t("set.maxActive")}<input type="number" id="o-max" min="1" max="20" value="${cur.maxActive}" style="width:90px"></label>
+      <label class="chk"><input type="checkbox" id="o-prog"${cur.showProgress ? " checked" : ""}> ${t("set.showProgress")}</label>
+      <div class="shint">${t("set.progressHint")}</div>
+      <label class="chk"><input type="checkbox" id="o-done"${cur.showComplete ? " checked" : ""}> ${t("set.showComplete")}</label>
+      <div class="shint">${t("set.completeHint")}</div>
+    </div>
+    <div class="spane" data-pane="conn">
+      <label>${t("set.conns")}<select id="o-conns" style="width:260px"><option value="0">${t("set.connsAuto", { n:cur.cpuConnections })}</option>${connOpts(cur.connections)}</select></label>
+      <div class="shint">${t("set.connsHint")}</div>
+      <div class="sgroup"><div class="sh">${t("set.hosts")}</div><div class="shint">${t("set.hostsHint")}</div>
+        <div id="o-hosts">${(cur.hostConnections || []).map(hostRow).join("")}</div>
+        <div><button type="button" class="btn small" id="o-addhost">${t("set.addHost")}</button></div></div>
+      <div class="row2">
+        <label style="flex:1">${t("set.speed")}<input type="number" id="o-speed" min="0" value="${cur.speedLimit || 0}"></label>
+        <label style="flex:1">${t("set.total")}<input type="number" id="o-total" min="0" value="${cur.totalLimit || 0}"></label>
+      </div>
+      <div class="shint">${t("set.limitHint")}</div>
+    </div>
+    <div class="err" id="o-err"></div>`;
+  dialog(t("set.title"), body, [
+    { label:t("btn.cancel") },
+    { label:t("set.save"), primary:true, action: async el => {
+      const q = s => el.querySelector(s);
+      const capture = {};
+      el.querySelectorAll("[data-cap]").forEach(c => { capture[c.dataset.cap] = c.checked; });
+      const next = {
+        capture,
+        browserTypes:lines(q("#o-btypes").value), autoTypes:lines(q("#o-atypes").value),
+        autoSites:lines(q("#o-asites").value), skipSites:lines(q("#o-ssites").value),
+        defaultDir:q("#o-dir").value.trim(), useCategories:q("#o-cats").checked,
+        categories:[...el.querySelectorAll("tr[data-cat]")].map(r => ({ id:r.dataset.cat, exts:lines(r.querySelector(".c-exts").value.replace(/\s+/g, ",")), dir:r.querySelector(".c-dir").value.trim() })),
+        maxActive:+q("#o-max").value, showProgress:q("#o-prog").checked, showComplete:q("#o-done").checked,
+        connections:+q("#o-conns").value,
+        hostConnections:[...el.querySelectorAll(".hrow")].map(r => ({ host:r.querySelector(".h-host").value.trim(), connections:+r.querySelector(".h-conns").value })).filter(h => h.host),
+        speedLimit:Math.max(0, Math.round(+q("#o-speed").value || 0)), totalLimit:Math.max(0, Math.round(+q("#o-total").value || 0)),
+      };
+      if (q("#o-auto")) next.autostart = q("#o-auto").checked;
+      try { await api("/settings", { method:"PUT", body:JSON.stringify(next) }); }
+      catch (e) { q("#o-err").textContent = e.message; return false; }
+      const l = q("#o-lang").value;
+      if (l !== lang) setLang(l);
+      try { info = await api("/info"); } catch {}
+      $("s-dir").textContent = dirLabel();
+      toast(t("set.saved"));
+    } }]);
+  const el = $("dlg");
+  el.querySelector(".dialog").classList.add("settings");
+  const show = x => {
+    tab = x; store.set("odm.settab", x);
+    el.querySelectorAll("[data-stab]").forEach(b => { b.classList.toggle("on", b.dataset.stab === x); b.setAttribute("aria-selected", b.dataset.stab === x); });
+    el.querySelectorAll("[data-pane]").forEach(p => { p.hidden = p.dataset.pane !== x; });
+  };
+  show(tab);
+  el.querySelector(".stabs").onclick = e => { const b = e.target.closest("[data-stab]"); if (b) show(b.dataset.stab); };
+  el.querySelector("#o-lang").value = lang;
+  // An empty category folder means "<download folder>\<Video…>": show that as
+  // the placeholder, and keep it in step while the download folder is edited.
+  const dirIn = el.querySelector("#o-dir");
+  const placeholders = () => {
+    const base = dirIn.value.trim().replace(/[\\/]+$/, "");
+    el.querySelectorAll(".c-dir").forEach(i => { i.placeholder = base && i.dataset.folder ? base + sep + i.dataset.folder : ""; });
+  };
+  dirIn.addEventListener("input", placeholders);
+  dirIn.addEventListener("change", placeholders);
+  placeholders();
+  el.querySelector(".dialog").addEventListener("click", async e => {
+    const b = e.target.closest("[data-browse]");
+    if (b) {
+      const input = el.querySelector("#" + b.dataset.browse);
+      b.disabled = true;
+      try {
+        const r = await api("/pickfolder", { method:"POST", body:JSON.stringify({ initial:input.value.trim() }) });
+        if (r && r.path) { input.value = r.path; input.dispatchEvent(new Event("change")); }
+      } catch (ex) { el.querySelector("#o-err").textContent = ex.message; }
+      finally { b.disabled = false; }
+    }
+    if (e.target.closest("[data-del-host]")) e.target.closest(".hrow").remove();
+  });
+  el.querySelector("#o-addhost").onclick = () => { el.querySelector("#o-hosts").insertAdjacentHTML("beforeend", hostRow()); el.querySelector("#o-hosts .hrow:last-child .h-host").focus(); };
+  if (info.canIntegrate) renderIntegrations(el.querySelector("#i-list"), el.querySelector("#i-err"));
+  else el.querySelector("#i-list").closest(".sgroup").hidden = true;
+}
+
 function promptToken(manual) {
   if (manual) tokenPromptMuted = false;
   if (tokenPromptMuted || !$("dlg").hidden) return;
@@ -963,6 +1123,7 @@ document.addEventListener("keydown", e => {
   const typing = /INPUT|TEXTAREA/.test(document.activeElement.tagName);
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "n") { e.preventDefault(); if (info && info.ytdlp) actions.ytdlp(); }
   else if (e.ctrlKey && e.key.toLowerCase() === "n") { e.preventDefault(); actions.add(); }
+  else if (e.ctrlKey && e.key === ",") { e.preventDefault(); if (info && info.canSettings) actions.settings(); }
   else if (e.ctrlKey && e.key.toLowerCase() === "b") { e.preventDefault(); actions.toggleSidebar(); }
   else if (e.ctrlKey && e.key.toLowerCase() === "j") { e.preventDefault(); actions.toggleDetails(); }
   else if (!typing && e.ctrlKey && e.key.toLowerCase() === "a") { e.preventDefault(); actions.selectAll(); }

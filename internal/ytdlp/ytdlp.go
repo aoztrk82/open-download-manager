@@ -286,6 +286,9 @@ type Options struct {
 	Dir       string
 	// Filename (any extension is replaced by yt-dlp's real one); empty = the title.
 	Filename string
+	// RateLimit in bytes/sec, 0 = unlimited (yt-dlp's own --limit-rate; the
+	// shared total limit cannot reach another process).
+	RateLimit int64
 }
 
 // FormatFor is the selector for a quality: 0 = best, -1 = audio only, else the
@@ -351,6 +354,9 @@ func DownloadArgs(o Options) []string {
 		// an extra codec). Above 1080p YouTube has no H.264; VP9/AV1 then. MKV
 		// keeps yt-dlp's own best-quality order.
 		args = append(args, "-S", "res,fps,vcodec:h264,ext:mp4:m4a")
+	}
+	if o.RateLimit > 0 {
+		args = append(args, "--limit-rate", strconv.FormatInt(o.RateLimit, 10))
 	}
 	return append(args, "--", o.URL)
 }

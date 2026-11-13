@@ -25,3 +25,15 @@ func revealInFolder(path string) error {
 	}
 	return exec.Command(opener, path).Start()
 }
+
+// openWithDefault opens a finished download with its default program.
+func openWithDefault(path string) error {
+	if _, err := os.Stat(path); err != nil {
+		return err
+	}
+	opener := "xdg-open"
+	if runtime.GOOS == "darwin" {
+		opener = "open"
+	}
+	return exec.Command(opener, filepath.Clean(path)).Start()
+}

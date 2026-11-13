@@ -21,6 +21,7 @@ import {
   type Target,
 } from "./api";
 import { applyI18n, h, t } from "./i18n";
+import { categoryDir, type CaptureRules } from "./util";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const id = new URLSearchParams(location.search).get("id") ?? "";
@@ -30,6 +31,8 @@ interface TargetState {
   client?: OdmClient;
   info?: Info;
   probe?: Probe | null;
+  /** Local ODM's Settings: category folders. */
+  rules?: CaptureRules | null;
   error?: string;
   loading?: Promise<void>;
 }
@@ -54,7 +57,14 @@ async function main() {
   const suggested = hints.filename || nameFromUrl(req.url);
   nameInput.value = suggested;
   let userRenamed = false;
-  nameInput.addEventListener("input", () => (userRenamed = true));
+  let dirTouched = false;
+  nameInput.addEventListener("input", () => {
+    userRenamed = true;
+    // A new extension may mean another category folder.
+    const cat = target === "local" ? categoryDir(state.local.rules ?? null, nameInput.value, !!req.media) : "";
+    if (cat && !dirTouched) dirInput.value = cat;
+  });
+  dirInput.addEventListener("input", () => (dirTouched = true));
   $("host").textContent = new URL(req.url).host;
   $("host").title = req.url;
   const showFacts = (p?: Probe | null) => {
@@ -91,6 +101,7 @@ async function main() {
         if (tg === "local") status.textContent = t("dlg.starting");
         st.client = await clientFor(tg, s);
         st.info = await st.client.info();
+        if (tg === "local" && st.info.canSettings) st.rules = await st.client.settings().catch(() => null);
         // Never probe a stream: its playlist URL may only work once.
         if (!req.media && (!hints.size || hints.resumable === undefined || !hints.filename)) {
           st.probe = await st.client.probe(req).catch(() => null);
@@ -114,7 +125,10 @@ async function main() {
         return o;
       }),
     );
-    dirInput.value = recent[0] ?? "";
+    // ODM sorting by type: the file's category folder, like a download that
+    // never showed this dialog. Otherwise the last folder used.
+    dirInput.value = (target === "local" && categoryDir(st.rules ?? null, nameInput.value, !!req.media)) || recent[0] || "";
+    dirTouched = false;
     $<HTMLButtonElement>("browse").hidden = !(target === "local" && st.info?.canPickFolder);
     const hint = $("dir-hint");
     hint.className = "hint";

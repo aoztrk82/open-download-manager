@@ -36,6 +36,13 @@ internal/ytdlp     runs yt-dlp (next to odm.exe; QuickJS qjs.exe beside it is pa
                    API /v1/media, /v1/media/probe, /v1/media/update; Web UI toolbar "yt-dlp" dialog
 extension/         shared TS built twice (dist/chrome, dist/firefox); MV3; src/content.ts = video button;
                    src/hook.ts runs in the page world (MAIN) and reports fetch/XHR bodies starting "#EXTM3U"
+internal/config    paths; prefs.json = language + Settings dialog (settings.go: capture per browser, file-type and
+                   site rules, download folder + category folders, downloads at once, progress/complete windows,
+                   connections + per-site exceptions, per-download and total speed limits). Local daemon only:
+                   GET/PUT /v1/settings, applied live (cmd/odm/settings.go -> queue.SetConfig, shared limiter)
+cmd/odm progress   progress_windows.go: tray watches queue events and starts `odm.exe progress <id>` (small
+                   WebView2 window on /progress.html, Pause/Cancel/Hide, turns into "download complete" with
+                   Open / Show in Folder); taskbar_windows.go = ITaskbarList3 progress (also the main window)
 installer/odm.iss  Inno Setup script: odm.exe + ffmpeg.exe, per-user, stops ODM with `odm quit` first
 ```
 - **Distribution is an installer, not a portable exe.** ffmpeg ships inside it (users never install it
@@ -117,7 +124,12 @@ Web UI has no build step; check syntax by extracting the `<script>` and running 
   `pierce: true` reaches the overlay's closed shadow root. Stop only that Chrome (its PID). The owner allowed this
   on 2026-11-13 ("this PC is barely used"). The owner's own Chrome has uBlock: ads there hide problems.
 - Never point tests at the owner's running ODM (127.0.0.1:6800): use `serve --listen 127.0.0.1:6899 --token`
-  with an isolated APPDATA.
+  with an isolated APPDATA, or `serve --local --listen 127.0.0.1:6899 --dir <temp>` to test local-only features
+  (Settings, open file). That second local daemon has no browser integrations on purpose: a test once clicked
+  "Install in Firefox" and opened the owner's Firefox. Always pass `--dir` so nothing lands in the real Downloads.
+- Headless Chrome (`--headless=new`) is enough for Web UI pages; it opens nothing on screen.
+- Extensions read their capture rules from ODM (GET /v1/settings on 127.0.0.1:6800, cached in storage as
+  `odmRules`); an older ODM answers 404 and the extension then behaves as before (always ask).
 
 ## Gotchas already solved (do not re-learn)
 - Cobra "mousetrap" refuses to run when launched from Explorer: `cobra.MousetrapHelpText = ""` in `main()`.

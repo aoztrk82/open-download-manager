@@ -15,8 +15,11 @@ download. One Go core shared by CLI, server and tray app; one TypeScript codebas
 - **Shared API contract:** write `api/openapi.yaml` and generate Go types + TS client from it (the original plan;
   today the TS client in `extension/src/api.ts` and the Go types are kept in sync by hand).
 - **FTP/FTPS hardening:** real-server tests, passive-mode edge cases, resume verification.
-- **Engine:** dynamic connections are done (pool.go). Still open: checksum verification, per-download speed limit,
-  a global connection cap, global schedule/bandwidth limit,
+- **Settings window:** done (tabs, capture rules for the extensions, category folders, progress/complete windows,
+  connection exceptions, speed limits). Next ideas: a scheduler (start/stop at times), per-download speed limit
+  from the context menu, "what to do when the file exists", sounds, minimum size in ODM instead of the extension.
+- **Engine:** dynamic connections are done (pool.go). Still open: checksum verification, a global connection cap,
+  schedule,
   proxy support, retry policy surfaced in the UI, redirect/filename handling edge cases.
 - **Server hardening:** TLS (or documented reverse proxy), multiple users/tokens, rate limiting, audit log.
 - **WebSocket events in the UI** instead of 1 s polling (the API already streams `/v1/events`).

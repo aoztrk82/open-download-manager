@@ -6,7 +6,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"net/url"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/aoztrk82/open-download-manager/internal/engine"
 	"github.com/aoztrk82/open-download-manager/internal/proto"
 	"github.com/aoztrk82/open-download-manager/internal/store"
+	"golang.org/x/time/rate"
 )
 
 // Event is published whenever a download changes.
@@ -37,6 +40,13 @@ type Config struct {
 	MaxConcurrent int   // simultaneous downloads (default 3)
 	Connections   int   // max connections per download (0 = CPU threads); the engine finds the real number
 	RateLimit     int64 // bytes/sec per download, 0 = unlimited
+	// Shared limits all downloads together; nil = none.
+	Shared *rate.Limiter
+	// DirFor picks the folder when a request names none (category folders);
+	// nil = DefaultDir. media: a stream whose file name may not be known yet.
+	DirFor func(name string, media bool) string
+	// ConnectionsFor overrides Connections per host (Settings > exceptions).
+	ConnectionsFor func(host string) int
 }
 
 type Manager struct {
@@ -67,6 +77,25 @@ func New(cfg Config, st *store.Store, eng *engine.Engine) *Manager {
 		subs:   map[chan Event]struct{}{},
 		ctx:    ctx, stop: stop,
 	}
+}
+
+// SetConfig applies changed settings. Running downloads keep their folder,
+// connection ceiling and own speed limit; the shared limit, if it is the same
+// limiter, changes for them at once. A higher MaxConcurrent starts more now.
+func (m *Manager) SetConfig(cfg Config) {
+	if cfg.MaxConcurrent <= 0 {
+		cfg.MaxConcurrent = 3
+	}
+	m.mu.Lock()
+	m.cfg = cfg
+	m.mu.Unlock()
+	m.kick()
+}
+
+func (m *Manager) config() Config {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cfg
 }
 
 // Start resumes interrupted downloads and begins scheduling.
@@ -109,7 +138,15 @@ func (m *Manager) Add(r AddRequest) (*store.Download, error) {
 	}
 	dir := r.Dir
 	if dir == "" {
-		dir = m.cfg.DefaultDir
+		cfg := m.config()
+		dir = cfg.DefaultDir
+		if cfg.DirFor != nil {
+			name := r.Filename
+			if name == "" && r.Request.Media == nil {
+				name = nameFromURL(r.Request.URL)
+			}
+			dir = cfg.DirFor(name, r.Request.Media != nil)
+		}
 	}
 	status := store.Queued
 	if r.Paused {
@@ -304,9 +341,16 @@ func (m *Manager) run(ctx context.Context, d *store.Download) {
 	// segments: a racing Done increment could be lost and later chunks written
 	// at the wrong offset. Callbacks receive snapshots, which nobody mutates.
 	st := d.State.Clone()
+	cfg := m.config()
+	conns := cfg.Connections
+	if cfg.ConnectionsFor != nil {
+		if u, err := url.Parse(d.Req.URL); err == nil {
+			conns = cfg.ConnectionsFor(u.Hostname())
+		}
+	}
 	err := m.engine.Run(ctx, &st, engine.Options{
 		Req: d.Req, Dir: d.Dir, Filename: d.Filename,
-		Connections: m.cfg.Connections, RateLimit: m.cfg.RateLimit,
+		Connections: conns, RateLimit: cfg.RateLimit, Shared: cfg.Shared,
 	}, func(s engine.State) {
 		d.Size, d.Downloaded = s.Size, s.Downloaded()
 		if d.Filename == "" {
@@ -369,6 +413,15 @@ func (m *Manager) publish(e Event) {
 		default: // slow consumer: drop; clients re-sync via GET /downloads
 		}
 	}
+}
+
+// nameFromURL is the last path element, used only to pick a category folder.
+func nameFromURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return path.Base(u.Path)
 }
 
 func newID() string {

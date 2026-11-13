@@ -338,3 +338,83 @@ export function mergeGroups(groups: VideoGroup[], playing = ""): VideoGroup[] {
   for (const g of out) g.sources.sort((a, b) => rank[a.kind] - rank[b.kind] || (b.height ?? 0) - (a.height ?? 0));
   return out;
 }
+
+/**
+ * What ODM's Settings say about captured downloads (GET /v1/settings on the
+ * local daemon). Missing fields mean "no rule".
+ */
+export interface CaptureRules {
+  capture?: Record<string, boolean>;
+  browserTypes?: string[];
+  autoTypes?: string[];
+  autoSites?: string[];
+  skipSites?: string[];
+  useCategories?: boolean;
+  categories?: { id: string; exts: string[]; dir: string }[];
+  /** Where each category's files go now (its own folder or one inside the download folder). */
+  categoryDirs?: Record<string, string>;
+}
+
+/** Lowercase extension without the dot, "" when there is none. */
+export function extOf(name: string): string {
+  const m = /\.([a-z0-9]{1,16})$/i.exec(name.trim());
+  return m ? m[1].toLowerCase() : "";
+}
+
+// Chrome often has no file name yet when a download starts; the type tells.
+const MIME_EXT: Record<string, string> = {
+  "application/pdf": "pdf", "application/zip": "zip", "application/x-zip-compressed": "zip",
+  "application/x-7z-compressed": "7z", "application/vnd.rar": "rar", "application/x-rar-compressed": "rar",
+  "application/x-msdownload": "exe", "application/x-msi": "msi", "application/epub+zip": "epub",
+  "application/x-iso9660-image": "iso", "video/mp4": "mp4", "audio/mpeg": "mp3",
+};
+
+/** Extension from the file name, else from the MIME type. */
+export function extOfFile(name: string, mime = ""): string {
+  return extOf(name) || MIME_EXT[mime.split(";")[0].trim().toLowerCase()] || "";
+}
+
+/** host is one of the sites or a subdomain of one. */
+export function hostMatches(sites: string[] | undefined, host: string): boolean {
+  const h = host.toLowerCase().replace(/\.$/, "");
+  return (sites ?? []).some((s) => h === s || h.endsWith("." + s));
+}
+
+const hostOf = (u: string | undefined) => {
+  try {
+    return u ? new URL(u).hostname : "";
+  } catch {
+    return "";
+  }
+};
+
+/**
+ * "browser": leave the download to the browser; "auto": hand it to ODM
+ * without the dialog; "ask": the usual dialog. Sites match the file's host or
+ * the page it came from.
+ */
+export function captureDecision(
+  r: CaptureRules | null,
+  browser: string,
+  url: string,
+  page: string | undefined,
+  name: string,
+  mime = "",
+): "browser" | "auto" | "ask" {
+  if (!r) return "ask";
+  if (r.capture?.[browser] === false) return "browser";
+  const hosts = [hostOf(url), hostOf(page)].filter(Boolean);
+  if (hosts.some((h) => hostMatches(r.skipSites, h))) return "browser";
+  const ext = extOfFile(name, mime);
+  if (ext && r.browserTypes?.includes(ext)) return "browser";
+  if ((ext && r.autoTypes?.includes(ext)) || hosts.some((h) => hostMatches(r.autoSites, h))) return "auto";
+  return "ask";
+}
+
+/** The category folder for a file name when ODM sorts by type, else "". */
+export function categoryDir(r: CaptureRules | null, name: string, media = false): string {
+  if (!r?.useCategories) return "";
+  const ext = extOf(name) || (media ? "mp4" : "");
+  const c = r.categories?.find((x) => x.exts.includes(ext));
+  return (c && (c.dir || r.categoryDirs?.[c.id])) || "";
+}

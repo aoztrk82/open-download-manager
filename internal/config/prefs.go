@@ -11,6 +11,8 @@ import (
 type Prefs struct {
 	// Lang is the UI language ("en", "tr"); empty = follow the system.
 	Lang string `json:"lang,omitempty"`
+	// Settings dialog; fields missing from the file keep their defaults.
+	Settings
 }
 
 // Languages the Web UI and the tray have strings for.
@@ -35,14 +37,16 @@ func prefsPath() (string, error) {
 	return filepath.Join(d, "prefs.json"), nil
 }
 
-// LoadPrefs reads prefs.json; a missing or broken file gives zero Prefs.
+// LoadPrefs reads prefs.json; a missing or broken file gives the defaults.
 func LoadPrefs() Prefs {
 	prefsMu.Lock()
 	defer prefsMu.Unlock()
-	var p Prefs
+	p := Prefs{Settings: DefaultSettings()}
 	if path, err := prefsPath(); err == nil {
 		if b, err := os.ReadFile(path); err == nil {
-			_ = json.Unmarshal(b, &p)
+			if json.Unmarshal(b, &p) != nil {
+				p = Prefs{Settings: DefaultSettings()}
+			}
 		}
 	}
 	return p

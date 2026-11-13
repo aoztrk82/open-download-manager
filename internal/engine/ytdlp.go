@@ -40,7 +40,7 @@ func runYtdlp(ctx context.Context, st *State, o Options, onProgress func(State))
 	var last time.Time
 	file, err := ytdlp.Download(ctx, path, ytdlp.Options{
 		URL: o.Req.URL, Format: o.Req.Media.Format, Container: o.Req.Media.Container,
-		Dir: o.Dir, Filename: o.Filename,
+		Dir: o.Dir, Filename: o.Filename, RateLimit: o.RateLimit,
 	}, func(p ytdlp.Progress) {
 		mu.Lock()
 		st.Tool.Bytes = p.Downloaded

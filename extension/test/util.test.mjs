@@ -13,6 +13,7 @@ const out = await build({
 const {
   dispositionName, mediaKind, sourceLabel, toSource, jsonSources, mayHoldMedia, mergeGroups, isMediaUrl, human, fileNameFor,
   isHlsMaster, hlsVariants, hlsDuration, ytFormat, isYtdlpSite, cleanTitle,
+  extOf, extOfFile, hostMatches, captureDecision, categoryDir,
 } = await import(
   "data:text/javascript," + encodeURIComponent(out.outputFiles[0].text)
 );
@@ -222,4 +223,39 @@ test("mergeGroups dedupes, marks playing, sorts and drops empty groups", () => {
     m[1].sources.map((s) => s.url),
     ["https://x/hi_720p.mp4", "https://x/low_240p.mp4", "https://x/live.m3u8"],
   );
+});
+
+test("capture rules from ODM's Settings", () => {
+  assert.equal(extOf("Report.PDF"), "pdf");
+  assert.equal(extOf("noext"), "");
+  assert.equal(extOfFile("", "application/pdf; charset=binary"), "pdf");
+  assert.ok(hostMatches(["example.com"], "dl.Example.com"));
+  assert.ok(!hostMatches(["example.com"], "badexample.com"));
+
+  const r = {
+    capture: { firefox: false },
+    browserTypes: ["pdf"],
+    autoTypes: ["iso"],
+    autoSites: ["mirror.org"],
+    skipSites: ["bank.com"],
+  };
+  const d = (url, name, page, browser = "chrome", mime = "") => captureDecision(r, browser, url, page, name, mime);
+  assert.equal(d("https://x.com/a.zip", "a.zip"), "ask");
+  assert.equal(d("https://x.com/a.zip", "a.zip", undefined, "firefox"), "browser");
+  assert.equal(d("https://x.com/doc", "doc", undefined, "chrome", "application/pdf"), "browser");
+  assert.equal(d("https://x.com/a.ISO", "a.ISO"), "auto");
+  assert.equal(d("https://cdn.mirror.org/a.zip", "a.zip"), "auto");
+  assert.equal(d("https://cdn.net/a.zip", "a.zip", "https://www.bank.com/statements"), "browser");
+  assert.equal(captureDecision(null, "chrome", "https://x/a.pdf", undefined, "a.pdf"), "ask");
+
+  const cats = {
+    useCategories: true,
+    categories: [{ id: "video", exts: ["mp4", "mkv"], dir: "D:\\Video" }, { id: "music", exts: ["mp3"], dir: "" }],
+    categoryDirs: { video: "D:\\Video", music: "C:\\Users\\u\\Downloads\\Music" },
+  };
+  assert.equal(categoryDir(cats, "film.MKV"), "D:\\Video");
+  assert.equal(categoryDir(cats, "song.mp3"), "C:\\Users\\u\\Downloads\\Music"); // inside the download folder
+  assert.equal(categoryDir(cats, "notes.txt"), "");
+  assert.equal(categoryDir(cats, "", true), "D:\\Video"); // a stream becomes an MP4
+  assert.equal(categoryDir({ ...cats, useCategories: false }, "film.mkv"), "");
 });

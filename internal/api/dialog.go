@@ -39,12 +39,13 @@ func (s *Server) checkDir(dir string) (string, error) {
 	if s.AnyDir {
 		return clean, nil
 	}
-	if s.DefaultDir == "" {
+	base := s.defaultDir()
+	if base == "" {
 		return "", errors.New("this server does not accept a folder")
 	}
-	rel, err := filepath.Rel(filepath.Clean(s.DefaultDir), clean)
+	rel, err := filepath.Rel(filepath.Clean(base), clean)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", errors.New("folder must be inside the server's download folder " + s.DefaultDir)
+		return "", errors.New("folder must be inside the server's download folder " + base)
 	}
 	return clean, nil
 }
@@ -94,7 +95,7 @@ func (s *Server) pickFolder(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&body)
 	if body.Initial == "" {
-		body.Initial = s.DefaultDir
+		body.Initial = s.defaultDir()
 	}
 	path, err := s.PickFolder(body.Initial)
 	if err != nil {

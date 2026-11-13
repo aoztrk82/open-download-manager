@@ -49,6 +49,13 @@ type Server struct {
 	PickFolder func(initial string) (string, error)
 	// Lang is the shared UI language (local daemon only).
 	Lang LangPref
+	// Settings is the Settings dialog (local daemon only); with it the
+	// download folder follows the settings instead of DefaultDir.
+	Settings SettingsStore
+	// Autostart is "start with Windows" (local daemon on Windows only).
+	Autostart Autostart
+	// Open opens a finished file with its default program (local daemon only).
+	Open func(path string) error
 
 	seenMu sync.Mutex
 	seen   map[string]Seen
@@ -61,6 +68,8 @@ type Info struct {
 	CanReveal    bool              `json:"canReveal"`
 	CanIntegrate bool              `json:"canIntegrate"`
 	CanPickDir   bool              `json:"canPickFolder"`
+	CanSettings  bool              `json:"canSettings"`    // GET/PUT /v1/settings
+	CanOpen      bool              `json:"canOpen"`        // POST /v1/downloads/{id}/open
 	AnyDir       bool              `json:"anyFolder"`      // false: folders must be inside defaultDir
 	Lang         string            `json:"lang,omitempty"` // local daemon: the program's UI language
 	Extensions   map[string]string `json:"extensions"`
@@ -124,6 +133,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/probe", s.probe)
 	mux.HandleFunc("POST /v1/pickfolder", s.pickFolder)
 	mux.HandleFunc("PUT /v1/prefs", s.setPrefs)
+	mux.HandleFunc("GET /v1/settings", s.getSettings)
+	mux.HandleFunc("PUT /v1/settings", s.putSettings)
 	mux.HandleFunc("GET /v1/media", s.mediaInfo)
 	mux.HandleFunc("POST /v1/media/probe", s.mediaProbe)
 	mux.HandleFunc("POST /v1/media/update", s.mediaUpdate)
@@ -132,6 +143,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/downloads/{id}/pause", s.act(s.Queue.Pause))
 	mux.HandleFunc("POST /v1/downloads/{id}/resume", s.act(s.Queue.Resume))
 	mux.HandleFunc("POST /v1/downloads/{id}/reveal", s.reveal)
+	mux.HandleFunc("POST /v1/downloads/{id}/open", s.openFile)
 	mux.HandleFunc("DELETE /v1/downloads/{id}", s.remove)
 	mux.HandleFunc("GET /v1/events", s.events)
 	mux.HandleFunc("GET /v1/integrations", s.integrations)
@@ -247,8 +259,9 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 	}
 	_, ffErr := ffmpeg.Find() // a few stat calls; reflects an ffmpeg installed while running
 	_, ytErr := ytdlp.Find()
-	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.DefaultDir, Lang: lang,
+	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.defaultDir(), Lang: lang,
 		CanReveal: s.Reveal != nil, CanIntegrate: s.Integrations != nil, CanPickDir: s.PickFolder != nil,
+		CanSettings: s.Settings != nil, CanOpen: s.Open != nil,
 		AnyDir: s.AnyDir, Extensions: ext, FFmpeg: ffErr == nil, Ytdlp: ytErr == nil})
 }
 

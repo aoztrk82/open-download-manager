@@ -43,9 +43,12 @@ function check(name, keys, src, dynamic) {
   const ctx = { window: {} };
   vm.runInNewContext(readFileSync("internal/web/static/i18n.js", "utf8"), ctx);
   const keys = parity("web", ctx.window.I18N);
-  check("web", keys, readFileSync("internal/web/static/index.html", "utf8"), {
+  const pages = ["index.html", "progress.html"].map((f) => readFileSync(`internal/web/static/${f}`, "utf8")).join("\n");
+  check("web", keys, pages, {
     "status.": ["active", "queued", "paused", "completed", "failed"],
     "cs.": ["waiting", "connecting", "active", "retrying", "done", "stopped", "failed"],
+    "set.tab.": ["general", "types", "save", "downloads", "conn"],
+    "cat.": ["video", "music", "compressed", "documents", "programs", "images"],
   });
 }
 

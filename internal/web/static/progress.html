@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ODM</title>
+<script src="i18n.js"></script>
+<link rel="icon" href="favicon.ico">
+<style>
+  /* Same palette as index.html (the progress window opens beside the main one). */
+  :root {
+    --bg:#1e1e1e; --panel:#252526; --bar:#333333; --fg:#cccccc; --fg-strong:#ffffff; --muted:#8b8b8b; --line:#3c3c3c;
+    --accent:#0e639c; --ok:#4ec9b0; --bad:#f48771; --warn:#cca700; --menu:#3c3c3c; --prog-bg:#3a3a3a; --prog:#2f8f4e;
+  }
+  :root[data-theme="light"] {
+    --bg:#ffffff; --panel:#f3f3f3; --bar:#dddddd; --fg:#333333; --fg-strong:#000000; --muted:#6b6b6b; --line:#d4d4d4;
+    --accent:#007acc; --ok:#16825d; --bad:#c72e0f; --warn:#a07800; --menu:#e8e8e8; --prog-bg:#dcdcdc; --prog:#2f8f4e;
+  }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { display:flex; flex-direction:column; background:var(--panel); color:var(--fg); font:13px/1.4 "Segoe UI", system-ui, sans-serif;
+         user-select:none; overflow:hidden; }
+  [hidden] { display:none !important; }
+  main { flex:1; padding:14px 16px 8px; display:flex; flex-direction:column; gap:10px; min-height:0; }
+  .head { display:flex; gap:10px; align-items:center; min-width:0; }
+  .ext { flex:none; width:38px; height:44px; border:1px solid var(--line); border-radius:3px; background:var(--bg); display:flex;
+         align-items:flex-end; justify-content:center; padding-bottom:6px; font-size:10px; font-weight:700; color:var(--accent); }
+  .names { min-width:0; display:flex; flex-direction:column; gap:2px; }
+  #name { color:var(--fg-strong); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; user-select:text; }
+  #url { color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; user-select:text; }
+  .grid { display:grid; grid-template-columns:max-content 1fr; gap:3px 14px; font-variant-numeric:tabular-nums; }
+  .grid .k { color:var(--muted); } .grid .v { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; user-select:text; }
+  .st-active { color:var(--ok); } .st-paused, .st-queued { color:var(--warn); } .st-failed { color:var(--bad); } .st-completed { color:var(--ok); }
+  .bar { position:relative; height:20px; background:var(--prog-bg); border-radius:3px; overflow:hidden; }
+  .bar i { position:absolute; inset:0 auto 0 0; background:var(--prog); transition:width .4s; }
+  .bar span { position:absolute; inset:0; text-align:center; line-height:20px; font-size:12px; color:#fff; text-shadow:0 0 2px rgba(0,0,0,.6); }
+  .bar.paused i { background:var(--warn); } .bar.failed i { background:var(--bad); }
+  .bar.indet i { width:30% !important; animation:slide 1.2s ease-in-out infinite; }
+  @keyframes slide { from { left:-30%; } to { left:100%; } }
+  .cmap { position:relative; height:8px; background:var(--prog-bg); border-radius:2px; overflow:hidden; }
+  .cmap .seg { position:absolute; top:0; bottom:0; border-right:1px solid var(--panel); }
+  .cmap .seg i { position:absolute; inset:0 auto 0 0; background:var(--prog); }
+  .cmap .seg.active i { background:var(--ok); }
+  .err { color:var(--bad); font-size:12px; overflow-wrap:anywhere; user-select:text; }
+  .done-title { font-size:15px; color:var(--fg-strong); font-weight:600; display:flex; align-items:center; gap:8px; }
+  .done-title svg { width:20px; height:20px; stroke:var(--ok); fill:none; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
+  .path { font-size:12px; color:var(--muted); overflow-wrap:anywhere; user-select:text; }
+  footer { display:flex; gap:8px; align-items:center; padding:10px 16px; border-top:1px solid var(--line); background:var(--panel); }
+  footer .grow { flex:1; }
+  footer label { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--muted); }
+  .btn { padding:5px 16px; border:1px solid var(--line); border-radius:3px; background:var(--menu); color:var(--fg); cursor:pointer; font:inherit; }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .btn:focus-visible { outline:1px solid var(--accent); outline-offset:1px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="head"><div class="ext" id="ext"></div><div class="names"><div id="name">…</div><div id="url"></div></div></div>
+  <section id="running">
+    <div class="grid">
+      <span class="k" data-i18n="pg.status"></span><span class="v" id="status"></span>
+      <span class="k" data-i18n="pg.size"></span><span class="v" id="size"></span>
+      <span class="k" data-i18n="pg.downloaded"></span><span class="v" id="got"></span>
+      <span class="k" data-i18n="pg.speed"></span><span class="v" id="speed"></span>
+      <span class="k" data-i18n="pg.left"></span><span class="v" id="left"></span>
+      <span class="k" data-i18n="pg.resume"></span><span class="v" id="resumable"></span>
+    </div>
+  </section>
+  <section id="done" hidden>
+    <div class="done-title"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg><span data-i18n="pg.doneTitle"></span></div>
+    <div class="grid" style="margin-top:8px">
+      <span class="k" data-i18n="pg.size"></span><span class="v" id="dsize"></span>
+      <span class="k" data-i18n="pg.where"></span><span class="v path" id="dpath"></span>
+    </div>
+  </section>
+  <div class="bar" id="bar"><i id="fill" style="width:0"></i><span id="pct"></span></div>
+  <div class="cmap" id="cmap" hidden></div>
+  <div class="err" id="err"></div>
+</main>
+<footer>
+  <label id="never" hidden><input type="checkbox" id="never-cb"> <span data-i18n="pg.never"></span></label>
+  <span class="grow"></span>
+  <span id="run-btns">
+    <button class="btn" id="b-pause"></button>
+    <button class="btn" id="b-cancel" data-i18n="pg.cancel" data-i18n-title="pg.cancelTip"></button>
+    <button class="btn primary" id="b-hide" data-i18n="pg.hide" data-i18n-title="pg.hideTip"></button>
+  </span>
+  <span id="done-btns" hidden>
+    <button class="btn primary" id="b-open" data-i18n="pg.open"></button>
+    <button class="btn" id="b-folder" data-i18n="pg.folder"></button>
+    <button class="btn" id="b-close" data-i18n="pg.close"></button>
+  </span>
+</footer>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const store = { get:k => { try { return localStorage.getItem(k); } catch { return null; } } };
+const hash = new URLSearchParams(location.hash.slice(1));
+const id = hash.get("id") || "";
+let lang = hash.get("lang") || store.get("odm.lang") || (navigator.language || "en").slice(0, 2).toLowerCase();
+if (!I18N[lang]) lang = "en";
+const t = (k, v = {}) => String(I18N[lang][k] ?? I18N.en[k] ?? k).replace(/\{(\w+)\}/g, (_, n) => v[n] ?? "");
+document.documentElement.lang = lang;
+document.documentElement.dataset.theme = store.get("odm.theme") || "dark";
+document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+document.querySelectorAll("[data-i18n-title]").forEach(el => { el.title = t(el.dataset.i18nTitle); });
+
+async function api(path, opts = {}) {
+  const r = await fetch("/v1" + path, { ...opts, headers:{ "Content-Type":"application/json" } });
+  if (!r.ok) { const e = new Error((await r.json().catch(() => ({}))).error || r.statusText); e.status = r.status; throw e; }
+  return r.status === 204 ? null : r.json();
+}
+const fmtBytes = n => {
+  if (n < 1024) return n + " B";
+  const u = "KMGTP"; let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return n.toFixed(n >= 100 ? 0 : 1) + " " + u[i] + "iB";
+};
+const fmtEta = s => {
+  if (!isFinite(s) || s <= 0) return "—";
+  if (s < 60) return Math.ceil(s) + t("u.s");
+  if (s < 3600) return Math.floor(s / 60) + t("u.m") + " " + Math.floor(s % 60) + t("u.s");
+  if (s < 86400) return Math.floor(s / 3600) + t("u.h") + " " + Math.floor(s % 3600 / 60) + t("u.m");
+  return Math.floor(s / 86400) + t("u.d");
+};
+const nameOf = d => d.filename || d.request.url.split("?")[0].split("/").pop() || d.request.url;
+// The taskbar button and title bar (window.odmProgress exists in the desktop window only).
+const native = (state, done, total, title) => { if (typeof window.odmProgress === "function") window.odmProgress(state, done, total, title); else document.title = title; };
+const closeWin = () => { if (typeof window.odmClose === "function") window.odmClose(); else window.close(); };
+
+let settings = null, d = null, resumable = null, speed = { bytes:0, t:0, bps:0 }, startedDone = false, closing = false;
+
+function render() {
+  const st = d.status, name = nameOf(d);
+  $("name").textContent = name; $("name").title = name;
+  $("url").textContent = d.request.url; $("url").title = d.request.url;
+  $("ext").textContent = ((name.match(/\.([a-z0-9]{1,5})$/i) || [])[1] || "").toUpperCase();
+  const done = st === "completed";
+  $("running").hidden = done; $("done").hidden = !done;
+  $("run-btns").hidden = done; $("done-btns").hidden = !done;
+  $("never").hidden = !done;
+  const pct = d.size > 0 ? Math.min(100, d.downloaded * 100 / d.size) : (done ? 100 : 0);
+  const bar = $("bar");
+  bar.className = "bar" + (st === "paused" || st === "queued" ? " paused" : st === "failed" ? " failed" : "") + (st === "active" && d.size <= 0 ? " indet" : "");
+  $("fill").style.width = pct + "%";
+  $("pct").textContent = d.size > 0 || done ? pct.toFixed(1) + "%" : fmtBytes(d.downloaded);
+  $("err").textContent = st === "failed" ? (d.error || "") : "";
+  if (done) {
+    $("dsize").textContent = d.size > 0 ? fmtBytes(d.size) : fmtBytes(d.downloaded);
+    $("dpath").textContent = $("dpath").title = d.path || d.dir || "";
+    $("cmap").hidden = true;
+    native("none", 0, 0, t("pg.doneWinTitle", { name }));
+    return;
+  }
+  $("status").textContent = t("status." + st); $("status").className = "v st-" + st;
+  $("size").textContent = d.size > 0 ? fmtBytes(d.size) : t("det.unknown");
+  $("got").textContent = fmtBytes(d.downloaded) + (d.size > 0 ? ` (${pct.toFixed(1)}%)` : "");
+  $("speed").textContent = st === "active" ? fmtBytes(speed.bps) + "/s" : "—";
+  $("left").textContent = st === "active" && speed.bps > 0 && d.size > 0 ? fmtEta((d.size - d.downloaded) / speed.bps) : "—";
+  $("resumable").textContent = resumable === null ? "—" : resumable ? t("pg.yes") : t("pg.no");
+  const pause = $("b-pause");
+  pause.textContent = st === "active" || st === "queued" ? t("m.pause") : st === "failed" ? t("pg.retry") : t("m.resume");
+  const state = st === "failed" ? "error" : st === "paused" ? "paused" : d.size > 0 ? "normal" : "indeterminate";
+  native(state, d.downloaded, d.size > 0 ? d.size : 0, (d.size > 0 ? pct.toFixed(0) + "% " : "") + name);
+}
+
+function updateSpeed() {
+  const now = performance.now();
+  if (d.status !== "active") { speed = { bytes:d.downloaded, t:now, bps:0 }; return; }
+  if (speed.t && now > speed.t) {
+    const inst = Math.max(0, (d.downloaded - speed.bytes) / ((now - speed.t) / 1000));
+    speed = { bytes:d.downloaded, t:now, bps:speed.bps ? speed.bps * .7 + inst * .3 : inst };
+  } else speed = { bytes:d.downloaded, t:now, bps:0 };
+}
+
+async function poll() {
+  try {
+    const was = d && d.status;
+    d = await api("/downloads/" + id);
+    updateSpeed();
+    render();
+    // Finished while this window showed progress: keep it as the complete
+    // window, or close when that is switched off.
+    if (d.status === "completed" && was && was !== "completed" && settings && !settings.showComplete && !closing) {
+      closing = true; setTimeout(closeWin, 600);
+    }
+  } catch (e) {
+    if (e.status === 404) closeWin(); // removed from the list
+  }
+}
+
+let mapBusy = false;
+async function pollMap() {
+  if (!d || d.status === "completed" || mapBusy) return;
+  mapBusy = true;
+  try {
+    const c = await api(`/downloads/${id}/connections`);
+    if (c.connections.length || c.live) resumable = !!c.acceptRanges;
+    if (!c.live) { $("cmap").hidden = true; return; }
+    const size = c.size > 0 ? c.size : 0;
+    if (!size || c.connections.length < 2) { $("cmap").hidden = true; return; }
+    const len = cn => cn.end >= 0 ? cn.end - cn.start : 0;
+    $("cmap").innerHTML = c.connections.map(cn => {
+      const f = len(cn) > 0 ? Math.min(1, cn.done / len(cn)) : (cn.state === "done" ? 1 : 0);
+      return `<div class="seg ${cn.state === "active" ? "active" : ""}" style="left:${cn.start / size * 100}%;width:${len(cn) / size * 100}%"><i style="width:${f * 100}%"></i></div>`;
+    }).join("");
+    $("cmap").hidden = false;
+    $("cmap").title = t("pg.conns", { n:c.connections.filter(cn => cn.state === "active").length });
+  } catch { /* the map is optional */ }
+  finally { mapBusy = false; }
+}
+
+const act = async fn => { $("err").textContent = ""; try { await fn(); await poll(); } catch (e) { $("err").textContent = e.message; } };
+$("b-pause").onclick = () => act(() => api(`/downloads/${id}/${d.status === "active" || d.status === "queued" ? "pause" : "resume"}`, { method:"POST" }));
+// Cancel stops the download; it stays in the list and can be resumed later.
+$("b-cancel").onclick = () => act(async () => { if (d.status === "active" || d.status === "queued") await api(`/downloads/${id}/pause`, { method:"POST" }); closeWin(); });
+$("b-hide").onclick = closeWin;
+$("b-close").onclick = closeWin;
+$("b-open").onclick = () => act(async () => { await api(`/downloads/${id}/open`, { method:"POST" }); closeWin(); });
+$("b-folder").onclick = () => act(async () => { await api(`/downloads/${id}/reveal`, { method:"POST" }); closeWin(); });
+$("never-cb").onchange = e => api("/settings", { method:"PUT", body:JSON.stringify({ showComplete:!e.target.checked }) }).catch(ex => { $("err").textContent = ex.message; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeWin(); });
+
+(async () => {
+  try { settings = await api("/settings"); } catch { /* older daemon or server: defaults */ }
+  try { const info = await api("/info"); if (!info.canOpen) $("b-open").hidden = true; if (!info.canReveal) $("b-folder").hidden = true; } catch {}
+  await poll();
+  (d && d.status === "completed" ? $("b-open") : $("b-hide")).focus();
+  setInterval(poll, 500);
+  setInterval(pollMap, 1000);
+})();
+</script>
+</body>
+</html>

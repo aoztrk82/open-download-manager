@@ -113,6 +113,9 @@ type Options struct {
 	MinSplit           int64         // never leave a connection less than this to fetch (default 1 MiB)
 	Retries            int           // per-segment retries (default 5)
 	RateLimit          int64         // bytes/sec across all segments, 0 = unlimited
+	// Shared limits all downloads together (Settings > total speed limit);
+	// nil = none. Its rate may change while downloads run.
+	Shared *rate.Limiter
 
 	bufSize int // read buffer per connection; tests shrink it with MinSplit
 }
@@ -208,14 +211,7 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 		}
 	}
 
-	var lim *rate.Limiter
-	if o.RateLimit > 0 {
-		burst := int(o.RateLimit)
-		if burst < 32*1024 {
-			burst = 32 * 1024
-		}
-		lim = rate.NewLimiter(rate.Limit(o.RateLimit), burst)
-	}
+	lim := o.limiters()
 
 	var mu sync.Mutex
 	st.Conns = make([]Conn, len(st.Segments))

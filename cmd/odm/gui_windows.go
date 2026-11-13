@@ -40,7 +40,9 @@ func guiCommands() (func(*cobra.Command, []string) error, []*cobra.Command) {
 	tray.Flags().BoolVar(&background, "background", false, "start without showing the window")
 	win := &cobra.Command{Use: "window", Hidden: true, Short: "Open the ODM window",
 		RunE: func(*cobra.Command, []string) error { return runWindow() }}
-	return launch, []*cobra.Command{tray, win, quitCmd()}
+	prog := &cobra.Command{Use: "progress <id>", Hidden: true, Short: "Open the progress window of a download",
+		Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error { return runProgress(args[0]) }}
+	return launch, []*cobra.Command{tray, win, prog, quitCmd()}
 }
 
 func spawnSelf(args ...string) error {
@@ -50,7 +52,8 @@ func spawnSelf(args ...string) error {
 	}
 	// HideWindow is applied by Windows to the process's first ShowWindow call,
 	// so it must stay off for the GUI window or that window would be invisible.
-	return startDetached(exe, !(len(args) > 0 && args[0] == "window"), args...)
+	shows := len(args) > 0 && (args[0] == "window" || args[0] == "progress")
+	return startDetached(exe, !shows, args...)
 }
 
 // startLocalDaemon starts the tray app without a window (used by the CLI and by
@@ -84,6 +87,7 @@ func runTray(background bool) error {
 	quitReq := quitSignal()
 	trayLang.Store(progLang{}.Lang())
 	langCh := make(chan string, 1)
+	autoCh := make(chan bool, 1)
 	d, err := startDaemon(daemonOpts{Addr: "127.0.0.1:" + strconv.Itoa(config.DefaultPort), Reveal: true,
 		OnLang: func(l string) {
 			select { // keep only the newest change
@@ -91,11 +95,21 @@ func runTray(background bool) error {
 			default:
 			}
 			langCh <- l
-		}})
+		},
+		// Settings > General changes autostart: keep the tray's checkbox in step.
+		Autostart: winAutostart{onChange: func(on bool) {
+			select {
+			case <-autoCh:
+			default:
+			}
+			autoCh <- on
+		}},
+	})
 	if err != nil {
 		return err
 	}
 	defer d.Close()
+	go watchDownloads(d)
 
 	systray.Run(func() {
 		systray.SetIcon(trayIcon())
@@ -116,7 +130,7 @@ func runTray(background bool) error {
 				case <-open.ClickedCh:
 					_ = spawnSelf("window")
 				case <-folder.ClickedCh:
-					_ = exec.Command("explorer", config.DefaultDownloadDir()).Start()
+					_ = exec.Command("explorer", d.settings.Settings().Dir()).Start()
 				case <-auto.ClickedCh:
 					if err := setAutostart(!auto.Checked()); err == nil {
 						if auto.Checked() {
@@ -124,6 +138,12 @@ func runTray(background bool) error {
 						} else {
 							auto.Check()
 						}
+					}
+				case on := <-autoCh:
+					if on {
+						auto.Check()
+					} else {
+						auto.Uncheck()
 					}
 				case l := <-langCh:
 					trayLang.Store(l)
@@ -178,6 +198,21 @@ func setAutostart(on bool) error {
 	return k.SetStringValue("ODM", `"`+exe+`" tray --background`)
 }
 
+// winAutostart is Settings > General > "Start with Windows".
+type winAutostart struct{ onChange func(bool) }
+
+func (a winAutostart) Enabled() bool { return autostartEnabled() }
+
+func (a winAutostart) Set(on bool) error {
+	if err := setAutostart(on); err != nil {
+		return err
+	}
+	if a.onChange != nil {
+		a.onChange(on)
+	}
+	return nil
+}
+
 // ---- window ----
 
 func runWindow() error {
@@ -192,6 +227,28 @@ func runWindow() error {
 	// it (the Web UI would otherwise start in WebView2's language and switch).
 	url := cl.Base + "/#lang=" + progLang{}.Lang()
 
+	w, user32 := newWebView("ODM", 1000, 680)
+	if w == nil {
+		// WebView2 runtime missing: fall back to the default browser.
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	}
+	defer w.Destroy()
+	makeFrameless(w, user32)
+	// Overall progress of running downloads on the taskbar button.
+	tb := newTaskbar(uintptr(w.Window()))
+	_ = w.Bind("odmProgress", func(state string, done, total float64, _ string) {
+		tb.set(state, uint64(done), uint64(total))
+	})
+	closeWithDaemon(w, cl)
+	w.Navigate(url)
+	w.Run()
+	return nil
+}
+
+// newWebView creates a centered WebView2 window sized in 96-DPI pixels; nil
+// when the WebView2 runtime is missing. Locks the calling goroutine to its
+// thread: the window's message loop (w.Run) must run on it.
+func newWebView(title string, width, height int) (webview2.WebView, *windows.LazyDLL) {
 	runtime.LockOSThread()
 	// Without this Windows bitmap-scales the window (blurry, mis-centered) on
 	// high-DPI screens. -4 = PER_MONITOR_AWARE_V2.
@@ -206,23 +263,22 @@ func runWindow() error {
 		AutoFocus: true,
 		DataPath:  filepath.Join(cfg, "webview2"),
 		WindowOptions: webview2.WindowOptions{
-			Title: "ODM", Width: uint(1000 * scale), Height: uint(680 * scale), Center: true,
+			Title: title, Width: uint(float64(width) * scale), Height: uint(float64(height) * scale), Center: true,
 		},
 	})
-	if w == nil {
-		// WebView2 runtime missing: fall back to the default browser.
-		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
-	}
-	defer w.Destroy()
-	makeFrameless(w, user32)
-	// The window is only a view on the tray's daemon: when the tray quits there
-	// is nothing to show, so close with it instead of sitting on "Disconnected".
+	return w, user32
+}
+
+// closeWithDaemon closes the window when the tray's daemon stops answering
+// (a window is only a view on it) or when `odm quit` asks (the installer waits
+// for this exe to be free).
+func closeWithDaemon(w webview2.WebView, cl *api.Client) {
 	quitReq := quitSignal()
 	go func() {
 		fails := 0
 		for {
 			select {
-			case <-quitReq: // `odm quit`: the installer is waiting for this exe to be free
+			case <-quitReq:
 				w.Destroy()
 				return
 			case <-time.After(time.Second):
@@ -237,9 +293,6 @@ func runWindow() error {
 			}
 		}
 	}()
-	w.Navigate(url)
-	w.Run()
-	return nil
 }
 
 // ---- frameless window ----
