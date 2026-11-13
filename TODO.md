@@ -39,16 +39,11 @@ downloaded by an isolated daemon, the Web UI dialog against an isolated daemon (
 - [ ] "Update yt-dlp" button in the installed program (-U needs a writable install dir; per-user install is).
 - [ ] Owner's own Chrome: YouTube menu -> dialog -> their ODM.
 
-## 0h. 0.5.0 release (prepared, waiting for Docker on this PC)
-Done and tested here: Clear List, double-click window API, server-mode Settings (Go tests + isolated token
-server + screenshot). Windows ffmpeg rebuilt with the shared components.sh.
-Not run yet (no Docker / WSL here): the Dockerfile itself, tools/ffmpeg/build-linux.sh, the Linux yt-dlp/qjs.
-Release steps once Docker Desktop is installed and `docker login` done:
-1. `scripts\docker-build.ps1 -Test` (builds odm:<ver>, runs it on 127.0.0.1:6899 with a token, checks ffmpeg /
-   yt-dlp / qjs / token refusal), fix what breaks.
-2. Bump to 0.5.0 (api.Version + extension/package.json), `pnpm build`, `pnpm sign`, `scripts\build-installer.ps1`.
-3. Commit, tag v0.5.0, push; `scripts\docker-build.ps1 -Push` (amd64 + arm64; Docker Hub repo name: ask the
-   owner, default aoztrk82/odm); `gh release create v0.5.0 dist\odm-setup-0.5.0.exe` with notes.
+## 0h. 0.5.0 released; next: server tests on the owner's machine over SSH
+`scripts\docker-build.ps1 -Test` passed on amd64 (info, yt-dlp 2026.10.26, ffmpeg 9.0.2, qjs, token refusal).
+arm64 image was built under emulation for the push but never run on real arm64 hardware.
+Next (owner will give SSH access): run the image on their server, extension -> server path, Web UI with the
+token, yt-dlp/HLS on Linux, file ownership of /downloads, Later-queue schedule with TZ.
 
 ## 0g. Queues (sixth session, end)
 Tested: Go tests (order, one at a time, move up/down, later waits, wait between, stop -> back to waiting,

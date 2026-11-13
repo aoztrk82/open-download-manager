@@ -61,6 +61,11 @@ Newest first. Commit hashes refer to `git log`.
   and we publish 0.5.0 on Docker Hub and GitHub releases"): Dockerfile, docker-compose.yml, scripts/docker-build.ps1;
   ffmpeg components shared between the Windows and Linux builds. Settings now also work on a token server
   (folders stay inside --dir). Not built yet: Docker was not installed on this PC.
+- Version 0.5.0 (owner: "0.5.0 on Docker and GitHub releases, and a flashier README"): Docker image built and
+  smoke-tested first try, pushed as aoztrk82/odm:0.5.0 + latest (amd64, arm64); Firefox extension re-signed;
+  installer `dist\odm-setup-0.5.0.exe` (30.4 MB) attached to the GitHub release v0.5.0. README rewritten with a
+  screenshot (`docs/webui.png`: headless Chrome over CDP against an isolated daemon, folder shown as `D:\Downloads`
+  via `subst` so no personal path leaks), badges, feature table and a flow diagram.
 - Version 0.4.0 (owner brought the AMO keys back in `.env`): Firefox extension signed (unlisted) and embedded,
   installer `dist\odm-setup-0.4.0.exe` (30.4 MB), tag `v0.4.0`. Contents since 0.3.0: video button + HLS,
   bundled ffmpeg / yt-dlp / QuickJS, installer, Settings window, progress windows, download log, queues.
