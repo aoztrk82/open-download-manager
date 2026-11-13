@@ -22,6 +22,23 @@ Owner still to check in their own Chrome (with uBlock) and the real dialog -> th
 - [ ] Firefox needs a re-signed xpi (bump package.json, `pnpm sign`) before the embedded one has the feature.
 - Not done: DASH (.mpd, listed disabled), HLS with separate audio renditions, live streams (refused).
 
+## 0d. yt-dlp (YouTube) - sixth session, 2026-11-13
+Tested here: real YouTube download through yt-dlp + our 4 MB ffmpeg (merge works; MP4 prefers H.264, checked
+with ffprobe), the extension's "yt-dlp ile" entries on youtube.com up to the dialog's request and that request
+downloaded by an isolated daemon, the Web UI dialog against an isolated daemon (video qualities with sizes,
+20-item playlist, 2 picked into a "Blender Releases" subfolder, paused adds stay paused).
+- [x] QuickJS works: owner ran `yt-dlp --js-runtimes quickjs:qjs.exe -F <youtube>` ("[jsc:quickjs] Solving JS
+      challenges using quickjs", no runtime warning; only a harmless "Unknown codec iamf" for format 773).
+- With QuickJS YouTube also lists H.264 HLS formats (311/312) at 2-3x the bitrate of the https DASH ones
+  (1080p60: 312 ~562 MiB vs 299 ~246 MiB). Checked with qjs: our sort still picks https DASH (1080 -> 299+258,
+  720 -> 298+258; best -> 628+258, VP9 HLS 2160p since there is no 4K H.264). Owner said "keep the high-bitrate
+  HLS for now" believing HLS was picked; the sort was left unchanged, tell them it is actually DASH.
+  The quality sizes in the dialog use the largest video at a height, so they show the HLS size (~562 MiB).
+- [ ] Pause/resume of a yt-dlp download in the real program (job object kill + `--continue`); "delete file"
+      removes the current .part only (the other stream's .part may stay).
+- [ ] "Update yt-dlp" button in the installed program (-U needs a writable install dir; per-user install is).
+- [ ] Owner's own Chrome: YouTube menu -> dialog -> their ODM.
+
 ## 0c. Installer + bundled ffmpeg (sixth session, built, never installed)
 `scripts\build-installer.ps1` -> `dist\odm-setup-0.3.0.exe` (7.5 MB). ffmpeg 9.0.2 built from the signed release
 tarball, LGPL, remux-only + probing decoders, 4 MB, imports only system DLLs. Tested: TS / fMP4 / AES-128 HLS

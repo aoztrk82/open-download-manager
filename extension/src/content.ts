@@ -7,7 +7,10 @@
 import { ext } from "./ext";
 import { setLang, t } from "./i18n";
 import {
+  cleanTitle,
   fileNameFor,
+  isYtdlpSite,
+  ytFormat,
   hlsDuration,
   hlsVariants,
   human,
@@ -481,7 +484,18 @@ function collect(v: HTMLVideoElement, extraConfigs: string[] = []): VideoGroup[]
   } catch {
     /* no source */
   }
-  return mergeGroups(groups, playing);
+  const merged = mergeGroups(groups, playing);
+  // YouTube & co. stream in pieces (MSE) that only yt-dlp can follow: offer the
+  // page itself to ODM's yt-dlp. On other sites only when nothing else was found.
+  if (isYtdlpSite(location.hostname) || !merged.some((g) => g.sources.some((s) => s.kind !== "stream"))) {
+    const presets: [number, string][] = [[0, t("vid.best")], [1080, "1080p"], [720, "720p"], [480, "480p"], [-1, t("vid.audio")]];
+    merged.push({
+      title: t("vid.ytdlp"),
+      generic: true,
+      sources: presets.map(([height, label]) => ({ url: location.href, label, kind: "ytdlp", height })),
+    });
+  }
+  return merged;
 }
 
 // ---- menu ----
@@ -521,7 +535,9 @@ function render(v: HTMLVideoElement, groups: VideoGroup[]) {
   const named = groups.find((g) => !g.generic && g.title)?.title;
   for (const g of groups) {
     if (groups.length > 1 && g.title) menu.append(el("div", "head", g.title));
-    const name = g.generic || !g.title ? (named ?? pageTitle()) : g.title;
+    // yt-dlp pages: the live document title (single-page sites like YouTube
+    // leave og:title at the first video).
+    const name = g.sources[0]?.kind === "ytdlp" ? cleanTitle(document.title) : g.generic || !g.title ? (named ?? pageTitle()) : g.title;
     for (const s of g.sources) menu.append(item(s, name));
   }
   place();
@@ -545,6 +561,8 @@ function item(s: VideoSource, title: string): HTMLElement {
   if (s.kind === "stream") {
     b.disabled = true;
     size.textContent = t("vid.stream");
+  } else if (s.kind === "ytdlp") {
+    b.addEventListener("click", () => void pick(s, fileNameFor(title, s)));
   } else if (s.kind === "hls") {
     if (s.estimate) size.textContent = "~" + human(s.estimate);
     b.addEventListener("click", () => void pick(s, fileNameFor(title, s)));
@@ -584,9 +602,10 @@ async function pick(s: VideoSource, filename: string) {
       url: s.url,
       filename,
       referer: location.href,
-      size: (s.kind === "hls" ? s.estimate : sizes.get(s.url)) || undefined,
-      media: s.kind === "hls" ? "hls" : undefined,
+      size: (s.kind === "hls" ? s.estimate : s.kind === "file" ? sizes.get(s.url) : 0) || undefined,
+      media: s.kind === "hls" || s.kind === "ytdlp" ? s.kind : undefined,
       playlist,
+      format: s.kind === "ytdlp" ? ytFormat(s.height ?? 0) : undefined,
     })) as { ok: boolean; error?: string } | undefined;
     if (r && !r.ok) throw new Error(r.error ?? "?");
     flash(t("vid.sent"), true);

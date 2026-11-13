@@ -12,7 +12,7 @@ const out = await build({
 });
 const {
   dispositionName, mediaKind, sourceLabel, toSource, jsonSources, mayHoldMedia, mergeGroups, isMediaUrl, human, fileNameFor,
-  isHlsMaster, hlsVariants, hlsDuration,
+  isHlsMaster, hlsVariants, hlsDuration, ytFormat, isYtdlpSite, cleanTitle,
 } = await import(
   "data:text/javascript," + encodeURIComponent(out.outputFiles[0].text)
 );
@@ -134,6 +134,23 @@ test("fileNameFor", () => {
   assert.equal(fileNameFor("Cops-v2", { url: "https://archive.org/x/Cops-v2.ogv", height: 300, kind: "file" }), "Cops-v2 (300p).ogv");
   assert.equal(fileNameFor("Bölüm 1", { url: "https://x/w/token", height: 720, kind: "hls" }), "Bölüm 1 (720p).mp4", "streams become MP4");
   assert.equal(fileNameFor("x".repeat(300), mp4).length, 150 + " (1080p).mp4".length);
+});
+
+test("yt-dlp helpers", () => {
+  assert.equal(ytFormat(0), "bv*+ba/b");
+  assert.equal(ytFormat(-1), "ba[ext=m4a]/ba/b");
+  assert.equal(ytFormat(720), "bv*[height<=720]+ba/b[height<=720]", "same selectors as ytdlp.FormatFor (Go)");
+  for (const h of ["www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtube-nocookie.com", "vimeo.com", "x.com"]) {
+    assert.equal(isYtdlpSite(h), true, h);
+  }
+  for (const h of ["notyoutube.com", "youtube.com.evil.example", "www.showtv.com.tr"]) assert.equal(isYtdlpSite(h), false, h);
+  assert.equal(cleanTitle("(3) Big Buck Bunny 60fps 4K - Official Blender Foundation Short Film - YouTube"),
+    "Big Buck Bunny 60fps 4K - Official Blender Foundation Short Film");
+  assert.equal(cleanTitle("Some clip | Vimeo"), "Some clip");
+  const page = "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
+  assert.equal(fileNameFor("Big Buck Bunny", { url: page, height: 1080, kind: "ytdlp" }), "Big Buck Bunny (1080p).mp4");
+  assert.equal(fileNameFor("Big Buck Bunny", { url: page, height: -1, kind: "ytdlp" }), "Big Buck Bunny.m4a", "audio only");
+  assert.equal(fileNameFor("Big Buck Bunny", { url: page, height: 0, kind: "ytdlp" }), "Big Buck Bunny.mp4", "best: no fixed quality");
 });
 
 test("mergeGroups joins configs that name the same video", () => {

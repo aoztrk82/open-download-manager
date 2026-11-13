@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +19,10 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/aoztrk82/open-download-manager/internal/ffmpeg"
+	"github.com/aoztrk82/open-download-manager/internal/proto"
 	"github.com/aoztrk82/open-download-manager/internal/queue"
 	"github.com/aoztrk82/open-download-manager/internal/store"
+	"github.com/aoztrk82/open-download-manager/internal/ytdlp"
 )
 
 const Version = "0.3.0"
@@ -63,6 +66,8 @@ type Info struct {
 	Extensions   map[string]string `json:"extensions"`
 	// FFmpeg: this daemon can join media pieces (HLS/DASH, separate audio+video).
 	FFmpeg bool `json:"ffmpeg"`
+	// Ytdlp: yt-dlp is installed (YouTube and other sites; see /v1/media).
+	Ytdlp bool `json:"ytdlp"`
 }
 
 // Browsers ODM ships an extension for. Edge uses the Chrome build.
@@ -119,6 +124,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/probe", s.probe)
 	mux.HandleFunc("POST /v1/pickfolder", s.pickFolder)
 	mux.HandleFunc("PUT /v1/prefs", s.setPrefs)
+	mux.HandleFunc("GET /v1/media", s.mediaInfo)
+	mux.HandleFunc("POST /v1/media/probe", s.mediaProbe)
+	mux.HandleFunc("POST /v1/media/update", s.mediaUpdate)
 	mux.HandleFunc("GET /v1/downloads/{id}", s.get)
 	mux.HandleFunc("GET /v1/downloads/{id}/connections", s.connections)
 	mux.HandleFunc("POST /v1/downloads/{id}/pause", s.act(s.Queue.Pause))
@@ -238,9 +246,10 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 		lang = s.Lang.Lang()
 	}
 	_, ffErr := ffmpeg.Find() // a few stat calls; reflects an ffmpeg installed while running
+	_, ytErr := ytdlp.Find()
 	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.DefaultDir, Lang: lang,
 		CanReveal: s.Reveal != nil, CanIntegrate: s.Integrations != nil, CanPickDir: s.PickFolder != nil,
-		AnyDir: s.AnyDir, Extensions: ext, FFmpeg: ffErr == nil})
+		AnyDir: s.AnyDir, Extensions: ext, FFmpeg: ffErr == nil, Ytdlp: ytErr == nil})
 }
 
 func (s *Server) integrations(w http.ResponseWriter, r *http.Request) {
@@ -325,6 +334,23 @@ func (s *Server) add(w http.ResponseWriter, r *http.Request) {
 	if req.Request.URL == "" {
 		writeErr(w, 400, "request.url is required")
 		return
+	}
+	if m := req.Request.Media; m != nil {
+		switch m.Kind {
+		case proto.MediaHLS:
+		case proto.MediaYtdlp:
+			if err := checkPageURL(req.Request.URL); err != nil {
+				writeErr(w, 400, err.Error())
+				return
+			}
+			if m.Container != "" && m.Container != "mp4" && m.Container != "mkv" {
+				writeErr(w, 400, "container must be mp4 or mkv")
+				return
+			}
+		default:
+			writeErr(w, 400, "unknown media kind "+strconv.Quote(m.Kind))
+			return
+		}
 	}
 	dir, err := s.checkDir(req.Dir)
 	if err != nil {

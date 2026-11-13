@@ -33,6 +33,9 @@ if ($RebuildFFmpeg -or -not (Test-Path dist\ffmpeg\ffmpeg.exe)) {
   & $msys -lc "cd '$unixRepo' && MSYSTEM=MINGW64 bash tools/ffmpeg/build.sh"; Check "ffmpeg build"
 }
 
+Step "yt-dlp + QuickJS (pinned downloads)"
+& (Join-Path $PSScriptRoot "fetch-tools.ps1")
+
 Step "installer"
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe") |
   Where-Object { Test-Path $_ } | Select-Object -First 1

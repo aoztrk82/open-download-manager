@@ -34,6 +34,9 @@ download. One Go core shared by CLI, server and tray app; one TypeScript codebas
 - Done: video button (direct files, player configs in JSON attributes/scripts, page HTML re-read); installer
   bundling a small remux-only ffmpeg; HLS end to end (playlists caught by content in the page world, every
   variant listed with an estimated size, ODM downloads pieces in parallel, resumable, AES-128, fMP4, -> MP4).
+- Done: yt-dlp bundled (with QuickJS for YouTube): Web UI dialog (qualities with sizes, playlists with a
+  subfolder), extension "With yt-dlp" entries on YouTube & co., "Update yt-dlp" button.
 - Next: DASH (.mpd: separate audio + video, ffmpeg merges); HLS with separate audio renditions
-  (#EXT-X-MEDIA TYPE=AUDIO); progress/ETA for streams in the Web UI (size is an estimate until the end).
-- Maybe: hand YouTube-like sites to a user-installed yt-dlp. Never: DRM (Widevine) content.
+  (#EXT-X-MEDIA TYPE=AUDIO); progress/ETA for streams in the Web UI (size is an estimate until the end);
+  yt-dlp: browser cookies for age-restricted/members videos, subtitles, a size in the extension dialog
+  (POST /v1/media/probe), automatic yt-dlp update check. Never: DRM (Widevine) content.

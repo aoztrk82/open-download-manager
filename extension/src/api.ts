@@ -75,8 +75,11 @@ export interface DownloadRequest {
   cookies?: string;
   referer?: string;
   userAgent?: string;
-  /** A stream (HLS) rather than one file; playlist = the text the player received. */
-  media?: { kind: "hls"; playlist?: string };
+  /**
+   * A stream rather than one file. hls: playlist = the text the player
+   * received. ytdlp: url is the page, format a yt-dlp selector.
+   */
+  media?: { kind: "hls" | "ytdlp"; playlist?: string; format?: string; container?: "mp4" | "mkv" };
 }
 
 /** What the browser already told us about a captured download. */
@@ -107,6 +110,8 @@ export interface Info {
   extensions?: Record<string, string>;
   /** The daemon can join media pieces (HLS/DASH); missing on older daemons. */
   ffmpeg?: boolean;
+  /** The daemon has yt-dlp (YouTube and other sites). */
+  ytdlp?: boolean;
 }
 
 export interface Probe {

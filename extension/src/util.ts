@@ -40,7 +40,26 @@ export interface VideoSource {
   estimate?: number;
 }
 
-export type SourceKind = "file" | "hls" | "stream";
+/** "ytdlp": the page itself, handed to ODM's yt-dlp with a quality (height; 0 best, -1 audio). */
+export type SourceKind = "file" | "hls" | "ytdlp" | "stream";
+
+// Same selectors as ytdlp.FormatFor in ODM (Go) and the Web UI.
+export const ytFormat = (h: number) =>
+  h < 0 ? "ba[ext=m4a]/ba/b" : h === 0 ? "bv*+ba/b" : `bv*[height<=${h}]+ba/b[height<=${h}]`;
+
+// Sites whose videos are streamed in pieces (MSE) that yt-dlp understands.
+// Elsewhere the yt-dlp entries only show when nothing else was found.
+const YTDLP_HOSTS =
+  /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com|vimeo\.com|dailymotion\.com|twitch\.tv|kick\.com|x\.com|twitter\.com|instagram\.com|tiktok\.com|facebook\.com|reddit\.com|soundcloud\.com|bandcamp\.com|mixcloud\.com|bilibili\.com|rumble\.com|odysee\.com|streamable\.com|ted\.com|vk\.com|ok\.ru|nicovideo\.jp|bitchute\.com)$/i;
+export const isYtdlpSite = (host: string) => YTDLP_HOSTS.test(host);
+
+/** A page title without the site's suffix and YouTube's "(3) " unread counter. */
+export function cleanTitle(title: string): string {
+  return title
+    .replace(/^\(\d+\)\s*/, "")
+    .replace(/\s+[-|–—]\s+(YouTube|Vimeo|Dailymotion|Twitch|X|Twitter|Instagram|TikTok|Facebook|Reddit|SoundCloud)$/i, "")
+    .trim();
+}
 
 export interface VideoGroup {
   title: string;
@@ -61,8 +80,8 @@ export function fileNameFor(title: string, s: Pick<VideoSource, "url" | "label" 
     .replace(/[. ]+$/, "")
     .slice(0, 150)
     .trim();
-  // HLS/DASH end up as an MP4 after ODM joins the pieces.
-  const ext = s.kind !== "file" ? "mp4" : (formatOf(s.url) || "mp4").toLowerCase();
+  // HLS/DASH/yt-dlp end up as an MP4 after ODM joins the pieces (audio only: M4A).
+  const ext = s.kind === "ytdlp" && s.height === -1 ? "m4a" : s.kind !== "file" ? "mp4" : (formatOf(s.url) || "mp4").toLowerCase();
   if (!clean) {
     const last = s.url.split(/[?#]/)[0].split("/").filter(Boolean).pop() ?? "video";
     try {
@@ -71,7 +90,7 @@ export function fileNameFor(title: string, s: Pick<VideoSource, "url" | "label" 
       return last;
     }
   }
-  const quality = s.height ? `${s.height}p` : "";
+  const quality = s.height && s.height > 0 ? `${s.height}p` : "";
   return `${clean}${quality ? ` (${quality})` : ""}.${ext}`;
 }
 
@@ -315,7 +334,7 @@ export function mergeGroups(groups: VideoGroup[], playing = ""): VideoGroup[] {
   out.splice(0, out.length, ...out.filter((g) => g.sources.length));
 
   // Files, then HLS, then unsupported streams; by height (unknown last); sort is stable.
-  const rank = { file: 0, hls: 1, stream: 2 };
+  const rank = { file: 0, hls: 1, ytdlp: 2, stream: 3 };
   for (const g of out) g.sources.sort((a, b) => rank[a.kind] - rank[b.kind] || (b.height ?? 0) - (a.height ?? 0));
   return out;
 }

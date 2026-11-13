@@ -169,7 +169,27 @@
   #login .dialog { margin-top:8vh; }
   .dialog.wide { width:min(640px, 94vw); }
   .dialog .dirrow { display:flex; gap:6px; } .dialog .dirrow input { flex:1; min-width:0; }
-  .integ { display:flex; flex-direction:column; gap:8px; }
+  .dialog .row2 { display:flex; gap:6px; } .dialog .row2 input { flex:1; min-width:0; }
+.dialog select { background:var(--input); border:1px solid var(--line); border-radius:3px; padding:5px 6px; color:var(--fg); }
+.yt-head { display:flex; gap:10px; align-items:flex-start; }
+.yt-head img { width:120px; aspect-ratio:16/9; object-fit:cover; border:1px solid var(--line); flex:none; background:var(--bar); }
+.yt-head .meta { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.yt-head b { color:var(--fg-strong); overflow-wrap:anywhere; }
+.yt-head .sub { color:var(--muted); font-size:12px; }
+.yt-q { display:flex; flex-wrap:wrap; gap:6px; }
+.yt-q label { flex-direction:row !important; align-items:center; gap:6px !important; border:1px solid var(--line); border-radius:3px; padding:4px 8px; cursor:pointer; color:var(--fg) !important; font-size:12px !important; }
+.yt-q label:has(input:checked) { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); }
+.yt-q label small { color:var(--muted); }
+.yt-list { max-height:220px; overflow:auto; border:1px solid var(--line); border-radius:3px; }
+.yt-list label { flex-direction:row !important; align-items:center; gap:8px !important; padding:4px 8px; color:var(--fg) !important; font-size:12px !important; border-bottom:1px solid var(--line); }
+.yt-list label:last-child { border-bottom:0; }
+.yt-list .n { color:var(--muted); width:28px; text-align:right; flex:none; }
+.yt-list .tt { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.yt-list .d { color:var(--muted); flex:none; }
+.yt-tools { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--muted); }
+.yt-tools .grow { flex:1; }
+.btn.small { padding:2px 10px; font-size:12px; }
+.integ { display:flex; flex-direction:column; gap:8px; }
   .integ .row { border:1px solid var(--line); border-radius:3px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
   .integ .head { display:flex; align-items:center; gap:10px; }
   .integ .head b { color:var(--fg-strong); min-width:70px; }
@@ -186,6 +206,7 @@
   <div class="brand"><img src="icon.png" alt="" width="16" height="16">ODM</div>
   <div class="menu" data-menu="file"><div class="title" data-i18n="menu.file">File</div><div class="dropdown">
     <div class="item" data-act="add"><span data-i18n="m.add">Add Download…</span><span class="key">Ctrl+N</span></div>
+<div class="item" data-act="ytdlp" data-needs="ytdlp" hidden><span data-i18n="m.yt">Add with yt-dlp…</span><span class="key">Ctrl+Shift+N</span></div>
     <div class="sep"></div>
     <div class="item" data-act="pauseAll"><span data-i18n="m.pauseAll">Pause All</span></div>
     <div class="item" data-act="resumeAll"><span data-i18n="m.resumeAll">Resume All</span></div>
@@ -232,6 +253,7 @@
 
 <div id="toolbar">
   <button class="tb primary" data-act="add" data-i18n-title="tb.addTitle" title="Add download (Ctrl+N)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="tb.add">Add</span></button>
+  <button class="tb" data-act="ytdlp" data-needs="ytdlp" data-i18n-title="tb.ytTitle" title="Add a video page (YouTube and more) with yt-dlp" hidden><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z"/></svg><span data-i18n="tb.yt">yt-dlp</span></button>
   <div class="vsep"></div>
   <button class="tb" data-act="resume" id="tb-resume" data-i18n-title="m.resume" title="Resume"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg><span data-i18n="m.resume">Resume</span></button>
   <button class="tb" data-act="pause" id="tb-pause" data-i18n-title="m.pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg><span data-i18n="m.pause">Pause</span></button>
@@ -547,12 +569,14 @@ async function each(list, fn) { for (const d of list) { try { await fn(d); } cat
 const applyInfo = () => {
   $$("[data-needs=reveal]").forEach(el => { el.hidden = !(info && info.canReveal); });
   $$("[data-needs=integrate]").forEach(el => { el.hidden = !(info && info.canIntegrate); });
+  $$("[data-needs=ytdlp]").forEach(el => { el.hidden = !(info && info.ytdlp); });
 };
 const toast = msg => { $("s-dir").textContent = msg; setTimeout(() => { $("s-dir").textContent = dirLabel(); }, 4000); };
 const dirLabel = () => info ? t("st.saving", { dir:info.defaultDir }) : "";
 
 const actions = {
   add: () => addDialog(),
+  ytdlp: () => ytdlpDialog(),
   pause: () => each(selItems().filter(d => d.status === "active" || d.status === "queued"), d => api(`/downloads/${d.id}/pause`, { method:"POST" })),
   resume: () => each(selItems().filter(d => d.status === "paused" || d.status === "failed"), d => api(`/downloads/${d.id}/resume`, { method:"POST" })),
   remove: () => confirmRemove(selItems()),
@@ -656,6 +680,161 @@ function addDialog() {
     } catch (e) { $("dlg").querySelector("#d-err").textContent = e.message; }
     finally { browse.disabled = false; }
   };
+}
+/* yt-dlp: a video page (YouTube and ~1800 other sites) or a whole playlist. */
+// Same selectors as ytdlp.FormatFor in Go: 0 = best, -1 = audio only, else up to that height.
+const ytFormat = h => h < 0 ? "ba[ext=m4a]/ba/b" : h === 0 ? "bv*+ba/b" : `bv*[height<=${h}]+ba/b[height<=${h}]`;
+const YT_PRESETS = [0, 2160, 1440, 1080, 720, 480, 360, -1];
+const safeName = s => String(s || "").replace(/[<>:"/\\|?*\x00-\x1f]+/g, " ").replace(/\s+/g, " ").trim().replace(/[. ]+$/, "").slice(0, 150).trim();
+const fmtDur = s => {
+  s = Math.round(s || 0); if (!s) return "";
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${x}` : `${m}:${x}`;
+};
+const recentDirs = () => { try { return JSON.parse(store.get("odm.recentDirs") || "[]"); } catch { return []; } };
+const rememberDir = dir => { if (dir) store.set("odm.recentDirs", JSON.stringify([dir, ...recentDirs().filter(d => d !== dir)].slice(0, 8))); };
+
+function ytdlpDialog(prefill = "") {
+  const recent = recentDirs();
+  let probe = null, probedUrl = "", nameEdited = false;
+  dialog(t("yt.title"), `
+    <label>${t("yt.url")}<span class="row2"><input id="y-url" placeholder="https://www.youtube.com/watch?v=…" value="${esc(prefill)}">
+      <button type="button" class="btn" id="y-fetch">${t("yt.fetch")}</button></span></label>
+    <div id="y-res" style="display:flex;flex-direction:column;gap:10px"></div>
+    <label>${t("add.dir")}<span class="dirrow"><input id="y-dir" list="y-recent" placeholder="${esc(t("add.dirPh", { dir:info ? info.defaultDir : "" }))}">
+      ${info && info.canPickFolder ? `<button type="button" class="btn" id="y-browse">${t("add.browse")}</button>` : ""}</span>
+      <datalist id="y-recent">${recent.map(d => `<option value="${esc(d)}">`).join("")}</datalist></label>
+    <label>${t("yt.container")}<select id="y-cont"><option value="mp4">MP4</option><option value="mkv">MKV</option></select></label>
+    <label class="chk"><input type="checkbox" id="y-paused"> ${t("add.paused")}</label>
+    <div class="yt-tools"><span id="y-ver" class="grow"></span><button type="button" class="btn small" id="y-update">${t("yt.update")}</button></div>
+    <div class="err" id="y-err"></div>`, [
+    { label:t("btn.cancel") },
+    { label:t("add.start"), primary:true, action: async () => {
+      // Enter (or Download) before fetching, or after editing the URL: fetch first.
+      if (!probe || probedUrl !== q("#y-url").value.trim()) { await fetchInfo(); return false; }
+      return submit();
+    } }]);
+  const root = $("dlg");
+  root.querySelector(".dialog").classList.add("wide");
+  const q = s => root.querySelector(s);
+  const err = msg => { q("#y-err").textContent = msg || ""; };
+  q("#y-cont").value = store.get("odm.yt.container") || "mp4";
+
+  api("/media").then(m => { const v = q("#y-ver"); if (v) v.textContent = m.version ? "yt-dlp " + m.version : ""; }).catch(() => {});
+  q("#y-update").onclick = async () => {
+    const b = q("#y-update"); b.disabled = true; q("#y-ver").textContent = t("yt.updating");
+    try { const r = await api("/media/update", { method:"POST", body:"{}" }); q("#y-ver").textContent = "yt-dlp " + (r.version || "") + " · " + (r.output.split("\n").pop() || ""); }
+    catch (e) { q("#y-ver").textContent = ""; err(e.message); }
+    finally { b.disabled = false; }
+  };
+  const browse = q("#y-browse");
+  if (browse) browse.onclick = async () => {
+    browse.disabled = true;
+    try { const r = await api("/pickfolder", { method:"POST", body:JSON.stringify({ initial:q("#y-dir").value.trim() }) }); if (r && r.path) q("#y-dir").value = r.path; }
+    catch (e) { err(e.message); } finally { browse.disabled = false; }
+  };
+  q("#y-fetch").onclick = () => fetchInfo();
+  q("#y-cont").onchange = () => updateName();
+
+  async function fetchInfo() {
+    const url = q("#y-url").value.trim();
+    if (!/^https?:\/\//i.test(url)) { err(t("yt.needUrl")); return; }
+    err(""); probe = null;
+    const res = q("#y-res"), btn = q("#y-fetch");
+    res.innerHTML = `<div class="yt-tools">${t("yt.fetching")}</div>`; btn.disabled = true;
+    try { probe = await api("/media/probe", { method:"POST", body:JSON.stringify({ url }) }); probedUrl = url; }
+    catch (e) { res.innerHTML = ""; err(e.message); return; }
+    finally { if (q("#y-fetch")) btn.disabled = false; }
+    if (!q("#y-res")) return; // dialog closed meanwhile
+    nameEdited = false;
+    probe.kind === "playlist" ? renderPlaylist(res) : renderVideo(res);
+  }
+
+  const head = (thumb, sub) => `<div class="yt-head">${thumb ? `<img src="${esc(thumb)}" referrerpolicy="no-referrer" alt="">` : ""}
+    <div class="meta"><b>${esc(probe.title || probe.url)}</b><span class="sub">${sub}</span></div></div>`;
+  const qText = h => h < 0 ? t("yt.audio") : h === 0 ? t("yt.best") : h + "p";
+
+  function renderVideo(res) {
+    const qs = probe.qualities || [];
+    const top = qs.find(x => x.height > 0);
+    const opts = [{ h:0, size:top && top.size, label:t("yt.best") + (top ? ` (${top.height}p${top.fps > 30 ? top.fps : ""})` : "") },
+      ...qs.filter(x => x.height > 0).map(x => ({ h:x.height, size:x.size, label:x.height + "p" + (x.fps > 30 ? x.fps : "") })),
+      ...qs.filter(x => x.height === 0).map(x => ({ h:-1, size:x.size, label:t("yt.audio") }))];
+    const want = +(store.get("odm.yt.quality") || 0);
+    const pick = opts.some(o => o.h === want) ? want : 0;
+    const sub = [probe.uploader, fmtDur(probe.duration), probe.extractor].filter(Boolean).map(esc).join(" · ");
+    res.innerHTML = head(probe.thumbnail, sub) +
+      `<label>${t("yt.quality")}<div class="yt-q">${opts.map(o => `<label><input type="radio" name="y-q" value="${o.h}"${o.h === pick ? " checked" : ""}>${esc(o.label)}${o.size ? ` <small>~${fmtBytes(o.size)}</small>` : ""}</label>`).join("")}</div></label>
+       <label>${t("yt.name")}<input id="y-name"></label>`;
+    res.querySelectorAll("input[name=y-q]").forEach(r => r.onchange = () => updateName());
+    q("#y-name").oninput = () => { nameEdited = true; };
+    updateName();
+  }
+
+  function chosenHeight() {
+    const r = root.querySelector("input[name=y-q]:checked");
+    return r ? +r.value : +(q("#y-qsel")?.value || 0);
+  }
+  const extFor = h => h < 0 ? "m4a" : q("#y-cont").value;
+  function updateName() {
+    const n = q("#y-name"); if (!n || nameEdited || !probe) return;
+    const h = chosenHeight();
+    const top = (probe.qualities || []).find(x => x.height > 0);
+    const label = h > 0 ? h + "p" : h === 0 && top ? top.height + "p" : ""; // audio only: no quality
+    n.value = `${safeName(probe.title) || "video"}${label ? ` (${label})` : ""}.${extFor(h)}`;
+  }
+
+  function renderPlaylist(res) {
+    const es = probe.entries || [];
+    const want = +(store.get("odm.yt.quality") || 0);
+    const sub = [probe.uploader, t("yt.count", { n:es.length })].filter(Boolean).map(esc).join(" · ");
+    res.innerHTML = head("", sub) +
+      `<label>${t("yt.quality")}<select id="y-qsel">${YT_PRESETS.map(h => `<option value="${h}"${h === want ? " selected" : ""}>${esc(qText(h))}</option>`).join("")}</select></label>
+       <div class="yt-tools"><span class="grow" id="y-sel"></span><button type="button" class="btn small" data-all="1">${t("yt.all")}</button><button type="button" class="btn small" data-all="0">${t("yt.none")}</button></div>
+       <div class="yt-list">${es.map((e, i) => `<label><input type="checkbox" data-i="${i}" checked><span class="n">${i + 1}</span><span class="tt" title="${esc(e.title || e.url)}">${esc(e.title || e.url)}</span><span class="d">${fmtDur(e.duration)}</span></label>`).join("")}</div>
+       <label class="chk"><input type="checkbox" id="y-sub" checked> ${t("yt.subfolder")}</label>`;
+    const count = () => { q("#y-sel").textContent = t("yt.selected", { n:res.querySelectorAll(".yt-list input:checked").length, total:es.length }); };
+    res.querySelectorAll("[data-all]").forEach(b => b.onclick = () => { res.querySelectorAll(".yt-list input").forEach(c => { c.checked = b.dataset.all === "1"; }); count(); });
+    res.querySelector(".yt-list").onchange = count;
+    count();
+  }
+
+  async function submit() {
+    err("");
+    const h = chosenHeight(), container = q("#y-cont").value;
+    const media = { kind:"ytdlp", format:ytFormat(h), container };
+    const dir = q("#y-dir").value.trim(), paused = q("#y-paused").checked;
+    const jobs = [];
+    if (probe.kind === "playlist") {
+      const picked = [...root.querySelectorAll(".yt-list input:checked")].map(c => +c.dataset.i);
+      if (!picked.length) { err(t("yt.pickOne")); return false; }
+      let target = dir;
+      if (q("#y-sub").checked) {
+        const base = dir || (info ? info.defaultDir : "");
+        const sep = base.includes("\\") ? "\\" : "/";
+        target = base.replace(/[\\/]+$/, "") + sep + (safeName(probe.title) || "playlist");
+      }
+      const width = String(probe.entries.length).length;
+      for (const i of picked) {
+        const e = probe.entries[i];
+        const name = `${String(i + 1).padStart(width, "0")} - ${safeName(e.title) || e.id}${h > 0 ? ` (${h}p)` : ""}.${extFor(h)}`;
+        jobs.push({ request:{ url:e.url, media }, filename:name, dir:target, paused });
+      }
+    } else {
+      jobs.push({ request:{ url:probe.url || probedUrl, media }, filename:q("#y-name").value.trim(), dir, paused });
+    }
+    const ok = q(".btn.primary"); ok.disabled = true;
+    try {
+      for (let k = 0; k < jobs.length; k++) {
+        if (jobs.length > 1) err(t("yt.adding", { n:k + 1, total:jobs.length }));
+        await api("/downloads", { method:"POST", body:JSON.stringify(jobs[k]) });
+      }
+    } catch (e) { ok.disabled = false; err(e.message); return false; }
+    store.set("odm.yt.quality", String(h)); store.set("odm.yt.container", container);
+    rememberDir(dir);
+    refresh();
+  }
+  if (prefill) fetchInfo();
 }
 // Persistent 401 failures re-open the token prompt on every poll; once the user
 // dismisses it we stay quiet until they ask again via Tools > Change Server Token.
@@ -782,7 +961,8 @@ $("tablewrap").addEventListener("contextmenu", e => {
 document.addEventListener("keydown", e => {
   if (!$("dlg").hidden) return; // the dialog handles its own keys
   const typing = /INPUT|TEXTAREA/.test(document.activeElement.tagName);
-  if (e.ctrlKey && e.key.toLowerCase() === "n") { e.preventDefault(); actions.add(); }
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "n") { e.preventDefault(); if (info && info.ytdlp) actions.ytdlp(); }
+  else if (e.ctrlKey && e.key.toLowerCase() === "n") { e.preventDefault(); actions.add(); }
   else if (e.ctrlKey && e.key.toLowerCase() === "b") { e.preventDefault(); actions.toggleSidebar(); }
   else if (e.ctrlKey && e.key.toLowerCase() === "j") { e.preventDefault(); actions.toggleDetails(); }
   else if (!typing && e.ctrlKey && e.key.toLowerCase() === "a") { e.preventDefault(); actions.selectAll(); }

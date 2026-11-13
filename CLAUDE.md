@@ -29,6 +29,11 @@ internal/ffmpeg    finds ffmpeg ($ODM_FFMPEG, next to odm.exe, PATH) and remuxes
 internal/hls       HLS playlist parsing: master variants; media items (segments, AES keys, fMP4 init,
                    byte ranges) + a local playlist for ffmpeg. engine/hls.go downloads them in parallel into
                    "<name>.parts" (resumable, State.HLS), then ffmpeg -> MP4 (or plain TS concat without ffmpeg)
+internal/ytdlp     runs yt-dlp (next to odm.exe; QuickJS qjs.exe beside it is passed as --js-runtimes, our
+                   ffmpeg as --ffmpeg-location, --ignore-config): Probe (-J --flat-playlist: qualities or
+                   playlist entries), Download (own progress template), Update (-U). Windows: job object so
+                   pause kills the PyInstaller child and ffmpeg too. Media kind "ytdlp" in proto.Request;
+                   API /v1/media, /v1/media/probe, /v1/media/update; Web UI toolbar "yt-dlp" dialog
 extension/         shared TS built twice (dist/chrome, dist/firefox); MV3; src/content.ts = video button;
                    src/hook.ts runs in the page world (MAIN) and reports fetch/XHR bodies starting "#EXTM3U"
 installer/odm.iss  Inno Setup script: odm.exe + ffmpeg.exe, per-user, stops ODM with `odm quit` first
@@ -68,8 +73,10 @@ cd extension && pnpm sign                     # AMO keys from env or root .env (
 cd extension && pnpm typecheck && pnpm test   # test = pure helpers in src/util.ts
 node scripts/i18n-check.mjs                   # en/tr key parity for Web UI and extension
 go run tools/genicons/main.go                 # redraw every icon (extension, Web UI, tray, window)
-powershell -File scripts\build-installer.ps1  # -> dist\odm-setup-<ver>.exe (Inno Setup, per-user, ~7.5 MB)
-                                              # version = api.Version; builds ffmpeg once if dist\ffmpeg is missing
+powershell -File scripts\build-installer.ps1  # -> dist\odm-setup-<ver>.exe (Inno Setup, per-user, ~30 MB)
+                                              # version = api.Version; builds ffmpeg once if dist\ffmpeg is missing;
+                                              # scripts\fetch-tools.ps1: yt-dlp + QuickJS-NG at pinned SHA-256
+$env:ODM_YTDLP="$PWD\dist\yt-dlp\yt-dlp.exe"; $env:ODM_YTDLP_NET=1; go test ./internal/ytdlp  # real YouTube run
 C:\msys64\usr\bin\bash.exe -lc "cd <repo> && MSYSTEM=MINGW64 bash tools/ffmpeg/build.sh"
                                               # small LGPL remux-only ffmpeg (~4 MB) -> dist\ffmpeg
 $env:ODM_FFMPEG="$PWD\dist\ffmpeg\ffmpeg.exe"; go test ./internal/ffmpeg  # otherwise the real-ffmpeg test skips

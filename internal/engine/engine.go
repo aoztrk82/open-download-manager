@@ -41,6 +41,13 @@ type State struct {
 	// HLS is the progress of a streaming download (see hls.go); Segments is
 	// then unused.
 	HLS *HLSState `json:"hls,omitempty"`
+	// Tool is the progress of a download done by an external program (yt-dlp).
+	Tool *ToolState `json:"tool,omitempty"`
+}
+
+// ToolState is what an external downloader reported.
+type ToolState struct {
+	Bytes int64 `json:"bytes"`
 }
 
 // Clone returns a copy that shares no slices with s.
@@ -51,6 +58,10 @@ func (s State) Clone() State {
 		h := *s.HLS
 		h.Done = append([]bool(nil), h.Done...)
 		s.HLS = &h
+	}
+	if s.Tool != nil {
+		t := *s.Tool
+		s.Tool = &t
 	}
 	return s
 }
@@ -77,6 +88,9 @@ type Conn struct {
 func (s *State) Downloaded() int64 {
 	if s.HLS != nil {
 		return s.HLS.Bytes
+	}
+	if s.Tool != nil {
+		return s.Tool.Bytes
 	}
 	var n int64
 	for _, sg := range s.Segments {
@@ -148,6 +162,9 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 		return err
 	}
 	if o.Req.Media != nil {
+		if o.Req.Media.Kind == proto.MediaYtdlp {
+			return runYtdlp(ctx, st, o, onProgress)
+		}
 		return e.runHLS(ctx, st, o, src, onProgress)
 	}
 

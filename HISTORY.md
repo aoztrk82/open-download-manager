@@ -31,6 +31,16 @@ Newest first. Commit hashes refer to `git log`.
 - An ad SDK iframe over the player swallowed every mouse event (Chrome reports nothing to the page about a
   pointer in a cross-process iframe), so the button never showed while ads ran without uBlock: frames now pass
   the pointer position up to their parent. Ad `<video>`s (IMA) are skipped when picking the hovered video.
+- YouTube (owner: "bundle yt-dlp like ffmpeg, a yt-dlp button and dialog in the UI, playlists"). yt-dlp
+  2026.10.26 (Unlicense) is shipped next to odm.exe; since late 2025 yt-dlp needs a JavaScript runtime for
+  YouTube (works without one for now, with a deprecation warning), so QuickJS-NG 0.17.0 (MIT, 2 MB; Deno/Node
+  are 80-100 MB) ships too. Both pinned by SHA-256 in `scripts/fetch-tools.ps1`; installer 7.5 -> 30 MB.
+  `internal/ytdlp` probes (qualities with sizes, flat playlists) and downloads with its own progress lines;
+  a Windows job object makes pause stop yt-dlp's PyInstaller child and ffmpeg. MP4 prefers H.264 at the same
+  resolution (YouTube's default pick was AV1, which older Windows cannot play). Web UI: "yt-dlp" toolbar
+  button / Ctrl+Shift+N dialog (quality, MP4/MKV, folder, playlist with select-all and a subfolder, "Update
+  yt-dlp"). Extension: "yt-dlp ile" entries (best/1080/720/480/audio) on YouTube and similar sites, or when a
+  page offers nothing else.
 
 ## 2026-11-12 - fifth session
 - Dynamic connections (owner: "why always 4?"). The engine starts with one segment and 2 connections, adds a

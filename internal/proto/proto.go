@@ -24,16 +24,23 @@ type Request struct {
 
 // Media describes a streaming download.
 type Media struct {
-	Kind string `json:"kind"` // "hls"
+	Kind string `json:"kind"` // "hls" | "ytdlp"
 	// Playlist is the playlist text as the browser received it, with URL as
 	// its address (for relative URIs). Sites often hand out playlist URLs that
 	// only work once or only inside the browser session; the segments
-	// themselves usually do not. Empty: ODM fetches URL itself.
+	// themselves usually do not. Empty: ODM fetches URL itself. HLS only.
 	Playlist string `json:"playlist,omitempty"`
+	// yt-dlp only: a format selector ("bv*[height<=1080]+ba/b[height<=1080]",
+	// empty = best) and the container for merged video+audio ("mp4", "mkv").
+	Format    string `json:"format,omitempty"`
+	Container string `json:"container,omitempty"`
 }
 
-// MediaHLS is Media.Kind for HLS.
-const MediaHLS = "hls"
+// Media kinds.
+const (
+	MediaHLS   = "hls"
+	MediaYtdlp = "ytdlp" // URL is a page (YouTube, ...) that yt-dlp understands
+)
 
 // Info is the result of probing a remote resource.
 type Info struct {

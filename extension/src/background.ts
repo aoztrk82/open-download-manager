@@ -338,8 +338,9 @@ interface Message {
   filename?: string;
   referer?: string;
   size?: number;
-  media?: string; // "hls"
+  media?: string; // "hls" | "ytdlp"
   playlist?: string;
+  format?: string; // yt-dlp format selector
 }
 
 ext.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
@@ -367,6 +368,11 @@ ext.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
           const playlist = typeof msg.playlist === "string" && msg.playlist.length <= 16 << 20 ? msg.playlist : undefined;
           req.media = { kind: "hls", playlist };
           hints.resumable = true; // pieces are kept across pauses
+        } else if (msg.media === "ytdlp") {
+          // The page itself goes to ODM's yt-dlp (YouTube and other MSE sites).
+          const format = typeof msg.format === "string" && msg.format.length <= 200 ? msg.format : undefined;
+          req.media = { kind: "ytdlp", format, container: "mp4" };
+          hints.resumable = true; // yt-dlp continues its .part files
         }
         await handOff(req, hints, await settings());
       })(),
