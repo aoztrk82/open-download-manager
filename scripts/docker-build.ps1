@@ -21,7 +21,11 @@ Write-Host "== $Image`:$version" -ForegroundColor Cyan
 
 if ($Push) {
   # arm64 is built under emulation on an x86 PC (ffmpeg takes a while).
+  # PowerShell 5.1 turns a native command's stderr into a terminating error under "Stop";
+  # a missing builder is expected the first time.
+  $ErrorActionPreference = "Continue"
   docker buildx inspect odm-builder *> $null
+  $ErrorActionPreference = "Stop"
   if ($LASTEXITCODE -ne 0) { docker buildx create --name odm-builder --driver docker-container | Out-Null; Check "buildx create" }
   docker buildx build --builder odm-builder --platform $Platforms --build-arg "VERSION=$version" `
     -t "$Image`:$version" -t "$Image`:latest" --push .
