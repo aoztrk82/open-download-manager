@@ -19,7 +19,7 @@ downloaded by an isolated daemon and checked with ffprobe:
 Owner still to check in their own Chrome (with uBlock) and the real dialog -> their ODM:
 - [ ] Rebuild/restart ODM, reload the extension; the three sites above; Web UI progress for an HLS download
       (size is an estimate until the end), pause/resume of an HLS download, remove with "delete file".
-- [ ] Firefox needs a re-signed xpi (bump package.json, `pnpm sign`) before the embedded one has the feature.
+- [x] Firefox xpi re-signed as 0.4.0 (has the video button, HLS, yt-dlp entries, capture rules, queues).
 - Not done: DASH (.mpd, listed disabled), HLS with separate audio renditions, live streams (refused).
 
 ## 0d. yt-dlp (YouTube) - sixth session, 2026-11-13
@@ -98,7 +98,7 @@ tab ever shows a "blocked by an extension" page. If capture misbehaves: about:de
 read the `[ODM]` console lines.
 
 ## 2. Extension install from ODM (written 2026-11-11, needs the owner)
-- [x] Signed with AMO (unlisted) and embedded (0.2.0, then 0.3.0); keys come from the gitignored root `.env`.
+- [x] Signed with AMO (unlisted) and embedded (0.2.0, 0.3.0, 0.4.0); keys come from the gitignored root `.env`.
 - [ ] Integrations > Install in Firefox: shows Firefox's "Add ODM?" prompt (firefox.exe <xpi path>, untested).
 - [ ] Chrome/Edge: "Open ... Extensions Page" really opens chrome://extensions / edge://extensions from the
       command line (unverified); Load unpacked from the folder; extension id equals `chromeExtensionID`.

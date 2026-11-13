@@ -26,7 +26,7 @@ import (
 	"github.com/aoztrk82/open-download-manager/internal/ytdlp"
 )
 
-const Version = "0.3.0"
+const Version = "0.4.0"
 
 type Server struct {
 	Queue      *queue.Manager

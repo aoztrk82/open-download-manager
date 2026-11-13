@@ -55,6 +55,9 @@ Newest first. Commit hashes refer to `git log`.
   HTML. Fixed in the extension (the page is never a source; mail.ru goes to yt-dlp, which supports it) and in
   ODM (a text/html answer for a video/audio name is refused with a clear error). A repo-root dev build also
   finds `dist\yt-dlp\yt-dlp.exe`.
+- Version 0.4.0 (owner brought the AMO keys back in `.env`): Firefox extension signed (unlisted) and embedded,
+  installer `dist\odm-setup-0.4.0.exe` (30.4 MB), tag `v0.4.0`. Contents since 0.3.0: video button + HLS,
+  bundled ffmpeg / yt-dlp / QuickJS, installer, Settings window, progress windows, download log, queues.
 - Queues (owner: "Download, Add to queue, Later; Later is a standby queue with Start and a schedule; a wait
   between downloads, default 60 s"). Main queue: one after another as soon as added. Later queue: waits for
   Start (toolbar, queue bar) or the schedule (date+time, optionally daily), one after another with the wait,
