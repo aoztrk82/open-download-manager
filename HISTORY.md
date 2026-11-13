@@ -2,6 +2,23 @@
 
 Newest first. Commit hashes refer to `git log`.
 
+## 2026-11-13 - sixth session
+- New dev PC set up: Go 1.27.4 (winget), pnpm 12 (npm -g), Inno Setup 6.7.3 (per-user), MSYS2 make/diffutils.
+  pnpm 12 fails installs on unapproved build scripts: esbuild approved in `extension/pnpm-workspace.yaml`.
+- Video button (owner: "a button on the playing video, list the qualities, use our dialog"): `content.ts` in
+  every http(s) frame finds the hovered `<video>` (also in open/closed shadow roots, via elementsFromPoint),
+  lists archive.org `play-av[playlist]` renditions, `<source>`, currentSrc, other videos and og:video files;
+  sizes from a background HEAD / 1-byte range fetch; pick -> `handOff` (dialog). Owner confirmed archive.org
+  works in Chrome. Other sites said "MSE": those stream HLS/DASH, which is the next step (ROADMAP "Media").
+- Owner: ODM ships as an installer, and users must not be told to install ffmpeg first. Prebuilt ffmpeg is
+  100-200 MB, so `tools/ffmpeg/build.sh` builds 9.0.2 from the signed tarball with only containers, parsers,
+  bsfs and the decoders stream probing needs (without them TS -> MP4 failed with "dimensions not set"): 4 MB,
+  LGPL, system DLLs only. Verified on TS, fMP4 and AES-128 HLS plus separate audio+video. `internal/ffmpeg`
+  finds it ($ODM_FFMPEG, next to odm.exe, PATH); `info.ffmpeg` reports it.
+- `installer/odm.iss` + `scripts/build-installer.ps1`: per-user Inno Setup (7.5 MB) with odm.exe and ffmpeg.
+  `odm quit` stops tray + window through a named event (no new API surface) so upgrades can replace files.
+  Tray autostart now writes `tray --background`. The installer was built but not run (see TODO 0c).
+
 ## 2026-11-12 - fifth session
 - Dynamic connections (owner: "why always 4?"). The engine starts with one segment and 2 connections, adds a
   connection every 2 s while total speed still rises by >10%, up to CPU threads (owner's choice; clamped 2..32,

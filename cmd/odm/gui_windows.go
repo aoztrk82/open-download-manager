@@ -40,7 +40,7 @@ func guiCommands() (func(*cobra.Command, []string) error, []*cobra.Command) {
 	tray.Flags().BoolVar(&background, "background", false, "start without showing the window")
 	win := &cobra.Command{Use: "window", Hidden: true, Short: "Open the ODM window",
 		RunE: func(*cobra.Command, []string) error { return runWindow() }}
-	return launch, []*cobra.Command{tray, win}
+	return launch, []*cobra.Command{tray, win, quitCmd()}
 }
 
 func spawnSelf(args ...string) error {
@@ -79,6 +79,9 @@ func runTray(background bool) error {
 		}
 		return spawnSelf("window")
 	}
+	resetQuit()
+	holdMutex(trayMutex)
+	quitReq := quitSignal()
 	trayLang.Store(progLang{}.Lang())
 	langCh := make(chan string, 1)
 	d, err := startDaemon(daemonOpts{Addr: "127.0.0.1:" + strconv.Itoa(config.DefaultPort), Reveal: true,
@@ -133,6 +136,9 @@ func runTray(background bool) error {
 				case <-quit.ClickedCh:
 					systray.Quit()
 					return
+				case <-quitReq: // `odm quit` (installer / uninstaller)
+					systray.Quit()
+					return
 				case err := <-d.Done():
 					fmt.Fprintln(os.Stderr, "daemon stopped:", err)
 					systray.Quit()
@@ -167,7 +173,9 @@ func setAutostart(on bool) error {
 	if err != nil {
 		return err
 	}
-	return k.SetStringValue("ODM", `"`+exe+`" tray`)
+	// --background: signing in to Windows should not pop up the window. The
+	// installer's autostart task writes the same value (installer/odm.iss).
+	return k.SetStringValue("ODM", `"`+exe+`" tray --background`)
 }
 
 // ---- window ----
@@ -209,10 +217,16 @@ func runWindow() error {
 	makeFrameless(w, user32)
 	// The window is only a view on the tray's daemon: when the tray quits there
 	// is nothing to show, so close with it instead of sitting on "Disconnected".
+	quitReq := quitSignal()
 	go func() {
 		fails := 0
 		for {
-			time.Sleep(time.Second)
+			select {
+			case <-quitReq: // `odm quit`: the installer is waiting for this exe to be free
+				w.Destroy()
+				return
+			case <-time.After(time.Second):
+			}
 			if _, err := cl.Info(); err != nil {
 				if fails++; fails >= 3 {
 					w.Destroy()

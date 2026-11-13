@@ -41,6 +41,12 @@ export const STRINGS = {
     "bg.giveBack": "{err} The download was given back to the browser.", "bg.cancelled": "Download cancelled: {url}",
     "bg.browser": "Left to the browser: {url}", "bg.kept": "Browser kept its copy ({why})",
     "bg.error": "Capture error: {err}", "bg.menu": "Download with ODM",
+    "opt.videoButton": "Show a download button on videos",
+    "opt.videoButtonHelp": "Hover a playing video to get a \"Download with ODM\" button that lists its qualities.",
+    "vid.thisVideo": "This video", "vid.pageVideos": "Other videos on this page", "vid.playing": "playing",
+    "vid.stream": "streaming playlist, not supported yet", "vid.none": "No downloadable source found for this video.",
+    "vid.mse": "This video is streamed in pieces (MSE); ODM cannot download it yet.",
+    "vid.sent": "Sent to ODM", "vid.failed": "Could not send: {err}",
     "err.notRunning": "ODM is not running and could not be started automatically. Start odm.exe once (it registers the browser integration), then try again. ({err})",
     "err.startFailed": "ODM could not be started: {err}", "err.noAnswer": "ODM was started but is not answering on {url}",
   },
@@ -81,6 +87,12 @@ export const STRINGS = {
     "bg.giveBack": "{err} İndirme tarayıcıya geri verildi.", "bg.cancelled": "İndirme iptal edildi: {url}",
     "bg.browser": "Tarayıcıya bırakıldı: {url}", "bg.kept": "Tarayıcı kendi kopyasını tuttu ({why})",
     "bg.error": "Yakalama hatası: {err}", "bg.menu": "ODM ile indir",
+    "opt.videoButton": "Videolarda indirme butonu göster",
+    "opt.videoButtonHelp": "Oynayan bir videonun üstüne gelince kalitelerini listeleyen \"ODM ile indir\" butonu çıkar.",
+    "vid.thisVideo": "Bu video", "vid.pageVideos": "Sayfadaki diğer videolar", "vid.playing": "oynatılıyor",
+    "vid.stream": "akış listesi, henüz desteklenmiyor", "vid.none": "Bu video için indirilebilir bir kaynak bulunamadı.",
+    "vid.mse": "Bu video parça parça akışla (MSE) oynatılıyor; ODM henüz indiremiyor.",
+    "vid.sent": "ODM'ye gönderildi", "vid.failed": "Gönderilemedi: {err}",
     "err.notRunning": "ODM çalışmıyor ve otomatik başlatılamadı. odm.exe'yi bir kez çalıştırın (tarayıcı entegrasyonunu kaydeder), sonra tekrar deneyin. ({err})",
     "err.startFailed": "ODM başlatılamadı: {err}", "err.noAnswer": "ODM başlatıldı ama {url} adresinde yanıt vermiyor",
   },
@@ -91,11 +103,14 @@ type Key = keyof (typeof STRINGS)["en"];
 
 let lang: Lang = "en";
 
-/** Picks the UI language from the setting ("auto" = browser language). */
-export function setLang(setting: string | undefined): Lang {
+/**
+ * Picks the UI language from the setting ("auto" = browser language). The
+ * content script passes markDocument=false: that document is the web page's.
+ */
+export function setLang(setting: string | undefined, markDocument = true): Lang {
   const want = !setting || setting === "auto" ? (navigator.language || "en").slice(0, 2).toLowerCase() : setting;
   lang = (want in STRINGS ? want : "en") as Lang;
-  if (typeof document !== "undefined") document.documentElement.lang = lang;
+  if (markDocument && typeof document !== "undefined") document.documentElement.lang = lang;
   return lang;
 }
 export const currentLang = () => lang;

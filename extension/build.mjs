@@ -23,6 +23,15 @@ for (const target of ["chrome", "firefox"]) {
     target: "es2022",
     logLevel: "warning",
   });
+  // Content scripts cannot be ES modules: a separate classic (IIFE) bundle.
+  await build({
+    entryPoints: { content: "src/content.ts" },
+    outdir: out,
+    bundle: true,
+    format: "iife",
+    target: "es2022",
+    logLevel: "warning",
+  });
   cpSync("static", out, { recursive: true });
   cpSync("_locales", `${out}/_locales`, { recursive: true });
   const manifest = JSON.parse(readFileSync(`manifest.${target}.json`, "utf8"));

@@ -28,4 +28,11 @@ download. One Go core shared by CLI, server and tray app; one TypeScript codebas
   AMO *unlisted* signing. Revisit the Chrome Web Store only if "Load unpacked" proves too awkward.
 - GUI-subsystem build so double-click never flashes a console (icons are done: tools/genicons + go-winres .syso).
 - Linux/macOS tray (the daemon and CLI already build there; tray, window and native-host registration are Windows only).
-- Torrent/magnet and media-site support are explicitly **not** planned.
+- Torrent/magnet support is explicitly **not** planned.
+
+## Media (owner's request, 2026-11-13; replaces the earlier "no media sites")
+- Done: video button in the extension (direct files, archive.org playlists); installer bundling a small
+  remux-only ffmpeg; `internal/ffmpeg`.
+- Next: sniff `.m3u8`/`.mpd` per tab in the extension (Chrome needs the `webRequest` permission), HLS downloader in
+  the engine (variant choice, parallel segments, AES-128), remux to MP4 with ffmpeg; then DASH (audio + video).
+- Maybe: hand YouTube-like sites to a user-installed yt-dlp. Never: DRM (Widevine) content.

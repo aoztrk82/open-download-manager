@@ -5,4 +5,8 @@
 *.json text eol=lf
 *.html text eol=lf
 *.md text eol=lf
+# bash under MSYS2 chokes on CRLF ("set: pipefail\r")
+*.sh text eol=lf
 *.exe binary
+# MPEG-TS video segments share the TypeScript extension; keep them byte-exact.
+internal/ffmpeg/testdata/** binary

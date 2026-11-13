@@ -305,13 +305,65 @@ ext.downloads.onCreated.addListener(async (item) => {
   }
 });
 
-ext.runtime.onMessage.addListener((msg: { type?: string; url?: string; filename?: string }, _sender, sendResponse) => {
-  if (msg?.type !== "browser-download" || !msg.url) return false;
-  browserDownload(msg.url, msg.filename).then(
-    () => sendResponse({ ok: true }),
-    (e: Error) => sendResponse({ ok: false, error: e.message }),
-  );
-  return true; // async response
+/**
+ * Size of a media URL for the video menu: HEAD first, then a one-byte range
+ * request (some CDNs refuse HEAD). 0 = unknown. Extension fetches are
+ * "xmlhttprequest", so the blocking capture above never sees them.
+ */
+async function remoteSize(url: string): Promise<number> {
+  const opts = { credentials: "include" as const, signal: AbortSignal.timeout(8_000) };
+  try {
+    const r = await fetch(url, { ...opts, method: "HEAD" });
+    const n = Number(r.headers.get("content-length"));
+    if (r.ok && n > 0) return n;
+  } catch {
+    /* try a range request */
+  }
+  try {
+    const r = await fetch(url, { ...opts, headers: { Range: "bytes=0-0" } });
+    void r.body?.cancel(); // only the headers matter; never pull the whole video
+    const total = r.headers.get("content-range")?.match(/\/(\d+)\s*$/)?.[1];
+    if (total) return Number(total);
+  } catch {
+    /* unknown */
+  }
+  return 0;
+}
+
+interface Message {
+  type?: string;
+  url?: string;
+  urls?: string[];
+  filename?: string;
+  referer?: string;
+  size?: number;
+}
+
+ext.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
+  const answer = (p: Promise<unknown>) => {
+    p.then(
+      (v) => sendResponse(v ?? { ok: true }),
+      (e: Error) => sendResponse({ ok: false, error: e.message }),
+    );
+    return true; // async response
+  };
+  if (msg?.type === "browser-download" && msg.url) return answer(browserDownload(msg.url, msg.filename));
+
+  // Video button (content.ts): the user picked a rendition; same path as a captured download.
+  if (msg?.type === "odm-video" && msg.url) {
+    const url = msg.url;
+    return answer(
+      (async () => {
+        const hints: Hints = { size: msg.size && msg.size > 0 ? msg.size : undefined };
+        await handOff(await buildRequest(url, msg.referer), hints, await settings());
+      })(),
+    );
+  }
+  if (msg?.type === "odm-video-sizes" && Array.isArray(msg.urls)) {
+    const urls = msg.urls.filter((u) => typeof u === "string" && /^https?:/i.test(u)).slice(0, 20);
+    return answer(Promise.all(urls.map(remoteSize)).then((ns) => Object.fromEntries(urls.map((u, i) => [u, ns[i]]))));
+  }
+  return false;
 });
 
 ext.runtime.onInstalled.addListener(async () => {

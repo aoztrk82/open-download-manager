@@ -17,6 +17,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/aoztrk82/open-download-manager/internal/ffmpeg"
 	"github.com/aoztrk82/open-download-manager/internal/queue"
 	"github.com/aoztrk82/open-download-manager/internal/store"
 )
@@ -60,6 +61,8 @@ type Info struct {
 	AnyDir       bool              `json:"anyFolder"`      // false: folders must be inside defaultDir
 	Lang         string            `json:"lang,omitempty"` // local daemon: the program's UI language
 	Extensions   map[string]string `json:"extensions"`
+	// FFmpeg: this daemon can join media pieces (HLS/DASH, separate audio+video).
+	FFmpeg bool `json:"ffmpeg"`
 }
 
 // Browsers ODM ships an extension for. Edge uses the Chrome build.
@@ -234,9 +237,10 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 	if s.Lang != nil {
 		lang = s.Lang.Lang()
 	}
+	_, ffErr := ffmpeg.Find() // a few stat calls; reflects an ffmpeg installed while running
 	writeJSON(w, http.StatusOK, Info{Name: "odm", Version: Version, DefaultDir: s.DefaultDir, Lang: lang,
 		CanReveal: s.Reveal != nil, CanIntegrate: s.Integrations != nil, CanPickDir: s.PickFolder != nil,
-		AnyDir: s.AnyDir, Extensions: ext})
+		AnyDir: s.AnyDir, Extensions: ext, FFmpeg: ffErr == nil})
 }
 
 func (s *Server) integrations(w http.ResponseWriter, r *http.Request) {

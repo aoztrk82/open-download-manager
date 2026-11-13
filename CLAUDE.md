@@ -25,8 +25,13 @@ internal/api       REST + WebSocket server, Go client, auth/origin guards (api_t
 internal/web       go:embed Web UI (static/index.html, single file, VS Code / qBittorrent look)
 internal/extbundle go:embed of the extensions: files/chrome (copied by `pnpm build`, gitignored) and
                    files/odm-firefox.xpi (AMO-signed unlisted, committed: needs the owner's keys to rebuild)
-extension/         shared TS built twice (dist/chrome, dist/firefox); MV3
+internal/ffmpeg    finds ffmpeg ($ODM_FFMPEG, next to odm.exe, PATH) and remuxes with -c copy only
+extension/         shared TS built twice (dist/chrome, dist/firefox); MV3; src/content.ts = video button
+installer/odm.iss  Inno Setup script: odm.exe + ffmpeg.exe, per-user, stops ODM with `odm quit` first
 ```
+- **Distribution is an installer, not a portable exe.** ffmpeg ships inside it (users never install it
+  themselves). `odm quit` (hidden, `cmd/odm/quit_windows.go`) stops tray + window via a named event so the
+  installer can replace files; it is not an API endpoint on purpose.
 - **Local mode** (`odm serve --local`, the tray app): listens on 127.0.0.1:6800, **no token**. Protection is
   `auth()` in `internal/api/api.go`: Host must be loopback, Origin must be absent / same-origin /
   `chrome-extension|moz-extension|safari-web-extension`, `POST /v1/downloads` must be `application/json`.
@@ -59,6 +64,11 @@ cd extension && pnpm sign                     # AMO keys from env or root .env (
 cd extension && pnpm typecheck && pnpm test   # test = pure helpers in src/util.ts
 node scripts/i18n-check.mjs                   # en/tr key parity for Web UI and extension
 go run tools/genicons/main.go                 # redraw every icon (extension, Web UI, tray, window)
+powershell -File scripts\build-installer.ps1  # -> dist\odm-setup-<ver>.exe (Inno Setup, per-user, ~7.5 MB)
+                                              # version = api.Version; builds ffmpeg once if dist\ffmpeg is missing
+C:\msys64\usr\bin\bash.exe -lc "cd <repo> && MSYSTEM=MINGW64 bash tools/ffmpeg/build.sh"
+                                              # small LGPL remux-only ffmpeg (~4 MB) -> dist\ffmpeg
+$env:ODM_FFMPEG="$PWD\dist\ffmpeg\ffmpeg.exe"; go test ./internal/ffmpeg  # otherwise the real-ffmpeg test skips
 cd extension && pnpm dlx web-ext lint -s dist/firefox
 ```
 Web UI has no build step; check syntax by extracting the `<script>` and running `node --check`.

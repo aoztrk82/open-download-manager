@@ -2,6 +2,7 @@
 // local app, and status reporting. Same HTTP protocol the Go CLI and Web UI use.
 import { ext } from "./ext";
 import { setLang, t } from "./i18n";
+import { human } from "./util";
 
 export { ext };
 
@@ -22,6 +23,8 @@ export interface Settings {
   defaultTarget: Target;
   /** "auto" (browser language), "en" or "tr". */
   language: string;
+  /** "Download with ODM" button over hovered videos (content.ts reads it directly). */
+  videoButton: boolean;
   /** Recently used folders per destination; server paths are not local paths. */
   recentDirs: Record<Target, string[]>;
 }
@@ -34,6 +37,7 @@ export const DEFAULTS: Settings = {
   askBeforeDownload: true,
   defaultTarget: "local",
   language: "auto",
+  videoButton: true,
   recentDirs: { local: [], remote: [] },
 };
 
@@ -99,6 +103,8 @@ export interface Info {
   anyFolder?: boolean;
   /** Extension versions bundled in odm.exe by family; missing on older daemons. */
   extensions?: Record<string, string>;
+  /** The daemon can join media pieces (HLS/DASH); missing on older daemons. */
+  ffmpeg?: boolean;
 }
 
 export interface Probe {
@@ -245,17 +251,7 @@ export function nameFromUrl(url: string): string {
   }
 }
 
-export function human(n: number): string {
-  if (!(n > 0)) return "0 B";
-  if (n < 1024) return `${n} B`;
-  const u = "KMGTP";
-  let i = -1;
-  do {
-    n /= 1024;
-    i++;
-  } while (n >= 1024 && i < u.length - 1);
-  return `${n.toFixed(n >= 100 ? 0 : 1)} ${u[i]}iB`;
-}
+export { human };
 
 /**
  * Visible feedback: toolbar badge + the "last event" line in the popup. Without

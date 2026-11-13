@@ -6,6 +6,8 @@ extension/dist/
 # Copied in by `pnpm build`; the signed xpi next to it is committed on purpose
 /internal/extbundle/files/chrome/
 *.exe
+# go build renames a running odm.exe out of the way
+*.exe~
 *.test
 *.out
 

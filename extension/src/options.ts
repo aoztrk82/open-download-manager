@@ -46,6 +46,7 @@ async function init() {
   $<HTMLSelectElement>("language").value = s.language;
   input("enabled").checked = s.enabled;
   input("askBeforeDownload").checked = s.askBeforeDownload;
+  input("videoButton").checked = s.videoButton;
   $<HTMLSelectElement>("defaultTarget").value = s.defaultTarget;
   input("minSizeMB").value = String(s.minSizeMB);
   input("serverUrl").value = s.serverUrl;
@@ -61,6 +62,7 @@ function read(): Partial<Settings> {
     language: $<HTMLSelectElement>("language").value,
     enabled: input("enabled").checked,
     askBeforeDownload: input("askBeforeDownload").checked,
+    videoButton: input("videoButton").checked,
     defaultTarget: $<HTMLSelectElement>("defaultTarget").value as Target,
     minSizeMB: Math.max(0, Number(input("minSizeMB").value) || 0),
     serverUrl: input("serverUrl").value.trim(),

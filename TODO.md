@@ -7,6 +7,28 @@
 - Ideas waiting for a decision: global connection cap across downloads, connection ceiling as a UI setting,
   ODM-side dedupe of the same URL added twice within seconds.
 
+## 0b. Video button (sixth session, 2026-11-13, never seen on screen)
+`extension/src/content.ts`: hovering a video >= 200x110 shows "Download with ODM ▾" top-right; the menu lists
+renditions (archive.org `play-av[playlist]`, `<source>`, currentSrc, other `<video>`s, og:video media files),
+sizes via background HEAD/range fetch, pick -> `handOff` (dialog). Unit tests cover the pure helpers in util.ts;
+`/v1/probe` on the archive.org mp4 checked against an isolated daemon. Not yet tried in a browser:
+- [ ] https://archive.org/details/Cops1922 in Chrome and Firefox: button appears over the player (shadow DOM),
+      menu shows 480p MP4 / 300p OGV with sizes, "playing" tag, pick opens the dialog, ODM downloads it.
+- [ ] Button hides after ~3 s idle / on leaving the video; clicks on it do not pause the player; fullscreen.
+- [ ] Firefox needs a re-signed xpi (bump package.json, `pnpm sign`) before the embedded one has the feature.
+- Later: HLS/DASH (m3u8/mpd) are listed but disabled; MSE (blob:) videos show a note. Needs engine support.
+
+## 0c. Installer + bundled ffmpeg (sixth session, built, never installed)
+`scripts\build-installer.ps1` -> `dist\odm-setup-0.3.0.exe` (7.5 MB). ffmpeg 9.0.2 built from the signed release
+tarball, LGPL, remux-only + probing decoders, 4 MB, imports only system DLLs. Tested: TS / fMP4 / AES-128 HLS
+and separate audio+video remux; `info.ffmpeg` true with ffmpeg next to odm.exe. Not tested (needs the owner or
+Windows Sandbox, the uninstaller deletes the real HKCU native-host keys and %APPDATA%\odm\extension):
+- [ ] Fresh install: no admin prompt, Start menu entry, "Start ODM now", autostart task, Turkish wizard.
+- [ ] Upgrade while ODM runs: `odm quit` closes tray + window, files replaced, downloads resume.
+- [ ] Uninstall: ODM stopped, files, native-host keys and Run value gone; downloads/DB in %APPDATA%\odm kept.
+- [ ] Tray "Start with Windows" now writes `tray --background` (was `tray`, which opened the window at sign-in).
+- Not done: code signing (SmartScreen will warn on an unsigned setup), auto-update.
+
 ## 1. Firefox double download - fixed (owner reports it works)
 Cause: small files (Gutenberg epub, ~106 KB, no `Content-Disposition`) were saved before `downloads.onCreated`
 could cancel them. Firefox now cancels download responses in blocking `webRequest.onHeadersReceived`; Chrome keeps
