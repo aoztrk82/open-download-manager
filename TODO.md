@@ -39,11 +39,20 @@ downloaded by an isolated daemon, the Web UI dialog against an isolated daemon (
 - [ ] "Update yt-dlp" button in the installed program (-U needs a writable install dir; per-user install is).
 - [ ] Owner's own Chrome: YouTube menu -> dialog -> their ODM.
 
-## 0h. 0.5.0 released; next: server tests on the owner's machine over SSH
-`scripts\docker-build.ps1 -Test` passed on amd64 (info, yt-dlp 2026.10.26, ffmpeg 9.0.2, qjs, token refusal).
-arm64 image was built under emulation for the push but never run on real arm64 hardware.
-Next (owner will give SSH access): run the image on their server, extension -> server path, Web UI with the
-token, yt-dlp/HLS on Linux, file ownership of /downloads, Later-queue schedule with TZ.
+## 0i. Owner's requests after 0.5.0 (2026-11-13, "we do these three later")
+- [ ] Show a "joining / merging" status at the end of a download (segments being stitched, HLS/yt-dlp ffmpeg
+      remux) instead of looking stuck at 100 %.
+- [ ] Server's free disk space in the status bar (download dir of the daemon; matters most on the server).
+- [ ] Extension: clear the download list there too, a quick button (like the Web UI's Clear List).
+
+## 0h. 0.5.0 released and running on the owner's Raspberry Pi
+`scripts\docker-build.ps1 -Test` passed on amd64. On the owner's Pi 5 (arm64, Debian, Docker 29.9) the image
+runs from their existing compose project in `~/Desktop/Docker` (service `odm`, data in `data/odm/{downloads,
+config}`, token in `data/odm/odm.env`); owner logged into the Web UI with the token and a download worked.
+Their watchtower updates `:latest` weekly, so a new release reaches the Pi by itself.
+GOLDEN RULE on that Pi: never stop/restart/recreate other containers (wg-easy is their VPN = remote access).
+Only `docker compose up -d --no-deps odm`, after `--dry-run`.
+Still untested there: extension -> server path, yt-dlp/HLS on Linux, Later-queue schedule with TZ.
 
 ## 0g. Queues (sixth session, end)
 Tested: Go tests (order, one at a time, move up/down, later waits, wait between, stop -> back to waiting,
