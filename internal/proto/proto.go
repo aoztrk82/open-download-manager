@@ -18,7 +18,22 @@ type Request struct {
 	Cookies   string            `json:"cookies,omitempty"`
 	Referer   string            `json:"referer,omitempty"`
 	UserAgent string            `json:"userAgent,omitempty"`
+	// Media makes this a streaming download (HLS) instead of one file.
+	Media *Media `json:"media,omitempty"`
 }
+
+// Media describes a streaming download.
+type Media struct {
+	Kind string `json:"kind"` // "hls"
+	// Playlist is the playlist text as the browser received it, with URL as
+	// its address (for relative URIs). Sites often hand out playlist URLs that
+	// only work once or only inside the browser session; the segments
+	// themselves usually do not. Empty: ODM fetches URL itself.
+	Playlist string `json:"playlist,omitempty"`
+}
+
+// MediaHLS is Media.Kind for HLS.
+const MediaHLS = "hls"
 
 // Info is the result of probing a remote resource.
 type Info struct {

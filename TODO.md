@@ -7,16 +7,20 @@
 - Ideas waiting for a decision: global connection cap across downloads, connection ceiling as a UI setting,
   ODM-side dedupe of the same URL added twice within seconds.
 
-## 0b. Video button (sixth session, 2026-11-13, never seen on screen)
-`extension/src/content.ts`: hovering a video >= 200x110 shows "Download with ODM ▾" top-right; the menu lists
-renditions (archive.org `play-av[playlist]`, `<source>`, currentSrc, other `<video>`s, og:video media files),
-sizes via background HEAD/range fetch, pick -> `handOff` (dialog). Unit tests cover the pure helpers in util.ts;
-`/v1/probe` on the archive.org mp4 checked against an isolated daemon. Not yet tried in a browser:
-- [ ] https://archive.org/details/Cops1922 in Chrome and Firefox: button appears over the player (shadow DOM),
-      menu shows 480p MP4 / 300p OGV with sizes, "playing" tag, pick opens the dialog, ODM downloads it.
-- [ ] Button hides after ~3 s idle / on leaving the video; clicks on it do not pause the player; fullscreen.
+## 0b. Video button + HLS (sixth session, 2026-11-13)
+Checked in a debug Chrome (CDP, no uBlock, ads playing) up to the dialog's request, then that exact request
+downloaded by an isolated daemon and checked with ffprobe:
+- archive.org/details/Cops1922: 480p MP4 / 300p OGV, playing mirror merged into the listed file.
+- showtv.com.tr (Ciner "hope" player, removes its config attribute after start; Google IMA iframe over the
+  player): 5 MP4s from the page HTML + 5 HLS variants; 720p HLS -> 1280x720 MP4, 135.5 s.
+- tranimeizle.live (JW Player, playlist at a session-bound /w/<token> served as octet-stream, segments are
+  MPEG-TS disguised as .jpeg on rotating hosts): 1080p/720p/480p; 480p (never loaded by the player) fetched
+  with the session, 725 pieces in ~20 s -> 854x480 MP4, 24:11.
+Owner still to check in their own Chrome (with uBlock) and the real dialog -> their ODM:
+- [ ] Rebuild/restart ODM, reload the extension; the three sites above; Web UI progress for an HLS download
+      (size is an estimate until the end), pause/resume of an HLS download, remove with "delete file".
 - [ ] Firefox needs a re-signed xpi (bump package.json, `pnpm sign`) before the embedded one has the feature.
-- Later: HLS/DASH (m3u8/mpd) are listed but disabled; MSE (blob:) videos show a note. Needs engine support.
+- Not done: DASH (.mpd, listed disabled), HLS with separate audio renditions, live streams (refused).
 
 ## 0c. Installer + bundled ffmpeg (sixth session, built, never installed)
 `scripts\build-installer.ps1` -> `dist\odm-setup-0.3.0.exe` (7.5 MB). ffmpeg 9.0.2 built from the signed release

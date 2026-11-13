@@ -38,6 +38,21 @@ type State struct {
 	// Limit is the current connection ceiling of this run (configured or
 	// learned from the server). Live only, like Conns.
 	Limit int `json:"-"`
+	// HLS is the progress of a streaming download (see hls.go); Segments is
+	// then unused.
+	HLS *HLSState `json:"hls,omitempty"`
+}
+
+// Clone returns a copy that shares no slices with s.
+func (s State) Clone() State {
+	s.Segments = append([]Segment(nil), s.Segments...)
+	s.Conns = append([]Conn(nil), s.Conns...)
+	if s.HLS != nil {
+		h := *s.HLS
+		h.Done = append([]bool(nil), h.Done...)
+		s.HLS = &h
+	}
+	return s
 }
 
 // Connection states shown in the UI.
@@ -60,6 +75,9 @@ type Conn struct {
 
 // Downloaded returns the total bytes written so far.
 func (s *State) Downloaded() int64 {
+	if s.HLS != nil {
+		return s.HLS.Bytes
+	}
 	var n int64
 	for _, sg := range s.Segments {
 		n += sg.Done
@@ -128,6 +146,9 @@ func (e *Engine) Run(ctx context.Context, st *State, o Options, onProgress func(
 	src, err := e.Sources.For(o.Req.URL)
 	if err != nil {
 		return err
+	}
+	if o.Req.Media != nil {
+		return e.runHLS(ctx, st, o, src, onProgress)
 	}
 
 	if len(st.Segments) == 0 {

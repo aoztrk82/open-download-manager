@@ -316,7 +316,9 @@ func (s *Server) add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req queue.AddRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+	// 16 MiB: a stream download carries its playlist (a long film with short
+	// segments is a few MB of text).
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<20)).Decode(&req); err != nil {
 		writeErr(w, 400, "bad json: "+err.Error())
 		return
 	}
@@ -435,7 +437,9 @@ func writeErr(w http.ResponseWriter, code int, msg string) {
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
-	w.Header().Set("Content-Type", "application/json")
+	// charset: JSON is UTF-8 by spec, but some clients (Windows PowerShell 5.1)
+	// assume Latin-1 without it and mangle non-ASCII file names.
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }

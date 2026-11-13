@@ -1,14 +1,20 @@
 // Video button. Hovering a video shows "Download with ODM" in its top-right
-// corner; the menu lists every rendition this page reveals (site playlists,
-// <source> tags, the playing URL, other videos, og:video) and hands the picked
+// corner; the menu lists every rendition this page reveals (player configs in
+// JSON attributes/scripts, <source> tags, the playing URL, other videos,
+// og:video) and hands the picked
 // one to the background script, which opens the usual download dialog.
 // Runs in every http(s) frame, so it must stay cheap until a video is hovered.
 import { ext } from "./ext";
 import { setLang, t } from "./i18n";
 import {
-  archivePlaylist,
+  fileNameFor,
+  hlsDuration,
+  hlsVariants,
   human,
+  isHlsMaster,
   isMediaUrl,
+  jsonSources,
+  mayHoldMedia,
   mergeGroups,
   toSource,
   type RawSource,
@@ -58,19 +64,45 @@ function shadowOf(el: Element): ShadowRoot | null {
   return el.shadowRoot;
 }
 
-function videoAt(x: number, y: number, root: Document | ShadowRoot = document, seen = new Set<Node>()): HTMLVideoElement | null {
+/**
+ * The video under the point. Ad SDKs (Google IMA) stack their own <video> on
+ * top of the real one, so a video that looks like an ad is only the fallback.
+ */
+function videoAt(x: number, y: number): HTMLVideoElement | null {
+  const all = videosAt(x, y, document, new Set());
+  return all.find((v) => !looksLikeAd(v)) ?? all[0] ?? null;
+}
+
+function videosAt(x: number, y: number, root: Document | ShadowRoot, seen: Set<Node>, out: HTMLVideoElement[] = []): HTMLVideoElement[] {
   seen.add(root);
   // All stacked elements, not just the top one: players cover the <video> with controls.
   for (const el of root.elementsFromPoint(x, y)) {
     if (el === host) continue;
-    if (el.localName === "video") return el as HTMLVideoElement;
-    const sr = shadowOf(el);
-    if (sr && !seen.has(sr)) {
-      const v = videoAt(x, y, sr, seen);
-      if (v) return v;
+    if (el.localName === "video") {
+      if (!out.includes(el as HTMLVideoElement)) out.push(el as HTMLVideoElement);
+      continue;
     }
+    const sr = shadowOf(el);
+    if (sr && !seen.has(sr)) videosAt(x, y, sr, seen, out);
   }
-  return null;
+  return out;
+}
+
+const AD_SRC = /(^|\.)(2mdn\.net|doubleclick\.net|googlesyndication\.com|imasdk\.googleapis\.com|googleadservices\.com)$/i;
+// Ad *containers* (Google IMA's "<player>_ima-ad-container", "ad-container"),
+// not player state classes: video.js marks the real player "vjs-ad-playing".
+const AD_BOX = /(ima-ad|ad-?container|ad-?video|adsbox|preroll|imasdk)/i;
+
+function looksLikeAd(v: HTMLVideoElement): boolean {
+  try {
+    if (AD_SRC.test(new URL(v.currentSrc || v.src).hostname)) return true;
+  } catch {
+    /* blob:, empty */
+  }
+  for (let e: Element | null = v, i = 0; e && i < 6; e = e.parentElement, i++) {
+    if (AD_BOX.test(e.id) || AD_BOX.test(typeof e.className === "string" ? e.className : "")) return true;
+  }
+  return false;
 }
 
 const bigEnough = (r: DOMRect) => r.width >= MIN_W && r.height >= MIN_H;
@@ -224,6 +256,28 @@ function hideLater(ms: number) {
   hideTimer = window.setTimeout(() => !menuOpen && hide(), ms);
 }
 
+/** The pointer is at (x, y) in this frame's viewport. */
+function pointerAt(x: number, y: number) {
+  const v = videoAt(x, y);
+  if (v && bigEnough(v.getBoundingClientRect())) {
+    show(v);
+    hideLater(IDLE_HIDE_MS);
+    return;
+  }
+  if (target && !menuOpen) hideLater(LEAVE_HIDE_MS);
+  // No video here: an iframe laid over a player (ad SDKs keep one there)
+  // swallows every mouse event, and Chrome tells the page nothing about a
+  // pointer inside a cross-process iframe. So pass the position up; the
+  // parent checks what is under it there.
+  if (window !== window.top) {
+    try {
+      window.parent.postMessage({ __odm_ptr__: 1, x, y }, "*");
+    } catch {
+      /* detached */
+    }
+  }
+}
+
 let lastMove = 0;
 document.addEventListener(
   "mousemove",
@@ -232,13 +286,36 @@ document.addEventListener(
     const now = performance.now();
     if (now - lastMove < 120) return; // elementsFromPoint is not free; 8 checks a second is plenty
     lastMove = now;
-    const v = videoAt(e.clientX, e.clientY);
-    if (v && bigEnough(v.getBoundingClientRect())) {
-      show(v);
-      hideLater(IDLE_HIDE_MS);
-    } else if (target && !menuOpen) hideLater(LEAVE_HIDE_MS);
+    pointerAt(e.clientX, e.clientY);
   },
   { capture: true, passive: true },
+);
+// Pointer positions from child frames (see pointerAt), in their coordinates.
+window.addEventListener("message", (e) => {
+  const d = e.data as { __odm_ptr__?: number; x?: unknown; y?: unknown } | null;
+  if (!enabled || !d || d.__odm_ptr__ !== 1 || typeof d.x !== "number" || typeof d.y !== "number" || !e.source) return;
+  let frame: HTMLIFrameElement | undefined;
+  document.querySelectorAll("iframe").forEach((f) => {
+    if (f.contentWindow === e.source) frame = f;
+  });
+  if (!frame) return;
+  const r = frame.getBoundingClientRect();
+  pointerAt(r.left + frame.clientLeft + d.x, r.top + frame.clientTop + d.y);
+});
+// A video that starts playing gets the button for a moment without any mouse
+// move (media events do not bubble, but capture listeners see them).
+document.addEventListener(
+  "playing",
+  (e) => {
+    const v = e.target as HTMLVideoElement;
+    if (!enabled || v.localName !== "video" || looksLikeAd(v) || menuOpen) return;
+    if (target && target !== v) return; // the user is already on another video
+    if (bigEnough(v.getBoundingClientRect())) {
+      show(v);
+      hideLater(IDLE_HIDE_MS);
+    }
+  },
+  true,
 );
 document.documentElement.addEventListener("mouseleave", () => target && !menuOpen && hideLater(LEAVE_HIDE_MS));
 document.addEventListener(
@@ -255,6 +332,64 @@ document.addEventListener(
   },
   true,
 );
+
+// ---- HLS playlists seen by hook.ts (page world) ----
+
+// URL -> playlist text, newest last. Page scripts can post these messages too,
+// so they are only ever offered in the menu, never acted on by themselves.
+const captured = new Map<string, string>();
+window.addEventListener("message", (e) => {
+  if (e.source !== window) return;
+  const d = e.data as { __odm_hls__?: number; url?: unknown; text?: unknown } | null;
+  if (!d || d.__odm_hls__ !== 1 || typeof d.url !== "string" || typeof d.text !== "string") return;
+  if (!/^https?:/i.test(d.url) || d.text.length > 16 << 20) return;
+  captured.delete(d.url);
+  captured.set(d.url, d.text);
+  while (captured.size > 40) captured.delete(captured.keys().next().value!);
+});
+window.postMessage({ __odm_hls_replay__: 1 }, "*"); // what hook.ts saw before we loaded
+
+/** HLS renditions from captured playlists; also the master URLs they expand. */
+function capturedSources(): { sources: VideoSource[]; masters: Set<string> } {
+  const sources: VideoSource[] = [];
+  const masters = new Set<string>();
+  const all = [...captured];
+  const medias = all.filter(([, t]) => !isHlsMaster(t));
+  const loaded = new Set(medias.map(([u]) => u));
+  const duration = Math.max(0, ...medias.map(([, t]) => hlsDuration(t)));
+  const variants = new Set<string>();
+  for (const [murl, text] of all.filter(([, t]) => isHlsMaster(t))) {
+    masters.add(murl);
+    for (const v of hlsVariants(text, murl)) {
+      variants.add(v.url);
+      sources.push({
+        url: v.url,
+        kind: "hls",
+        height: v.height,
+        label: v.height ? `${v.height}p · HLS` : "HLS",
+        playing: loaded.has(v.url),
+        estimate: v.bandwidth && duration ? Math.round((v.bandwidth / 8) * duration) : undefined,
+      });
+    }
+  }
+  // A media playlist without a master we saw (or an audio-only one).
+  for (const [u] of medias) if (!variants.has(u)) sources.push({ url: u, kind: "hls", label: "HLS", playing: true });
+  return { sources, masters };
+}
+
+/** The playlist text for an HLS source: as captured, else fetched like the player would. */
+async function playlistFor(url: string): Promise<string | undefined> {
+  const have = captured.get(url);
+  if (have) return have;
+  try {
+    const r = await fetch(url, { credentials: "include" });
+    const t = await r.text();
+    if (r.ok && t.replace(/^﻿/, "").startsWith("#EXTM3U")) return t;
+  } catch {
+    /* cross-origin without CORS, expired token, ...: ODM will try the URL itself */
+  }
+  return undefined;
+}
 
 // ---- collecting sources ----
 
@@ -277,19 +412,52 @@ function rawFromVideo(v: HTMLVideoElement): RawSource[] {
   return out;
 }
 
-function collect(v: HTMLVideoElement): VideoGroup[] {
+/** Player configs (JSON in attributes and json scripts) in a document. */
+function configsIn(doc: Document): string[] {
+  const out: string[] = [];
+  doc.querySelectorAll("*").forEach((node) => {
+    for (let i = 0; i < node.attributes.length; i++) {
+      const v = node.attributes[i].value;
+      if (mayHoldMedia(v)) out.push(v);
+    }
+  });
+  doc.querySelectorAll('script[type*="json"]').forEach((s) => mayHoldMedia(s.textContent) && out.push(s.textContent));
+  return out;
+}
+
+// Players often consume their config attribute and remove it (Show TV's
+// data-hope-video is gone once the player starts), so the page's own HTML is
+// read once as well. Same origin, same cookies; parsed inertly (DOMParser
+// runs no scripts and loads nothing).
+let pageConfigs: Promise<string[]> | null = null;
+function rawPageConfigs(): Promise<string[]> {
+  pageConfigs ??= fetch(location.href, { credentials: "include" })
+    .then((r) => (r.ok && /html/i.test(r.headers.get("content-type") ?? "") ? r.text() : ""))
+    .then((html) => (html ? configsIn(new DOMParser().parseFromString(html, "text/html")) : []))
+    .catch(() => []);
+  return pageConfigs;
+}
+
+/** The video's name for file names: og:title, else the document title. */
+function pageTitle(): string {
+  const og = document.querySelector('meta[property="og:title"]')?.getAttribute("content");
+  return (og || document.title || "").trim();
+}
+
+function collect(v: HTMLVideoElement, extraConfigs: string[] = []): VideoGroup[] {
   const base = location.href;
   const conv = (xs: RawSource[]) => xs.map((x) => toSource(x, base)).filter((s): s is VideoSource => s !== null);
   const groups: VideoGroup[] = [];
 
-  // Site playlists first: they know every quality, not just the one playing.
-  if (/(^|\.)archive\.org$/.test(location.hostname)) {
-    document.querySelectorAll("play-av[playlist]").forEach((p) => groups.push(...archivePlaylist(p.getAttribute("playlist") ?? "", base)));
-  }
-  groups.push({ title: t("vid.thisVideo"), sources: conv(rawFromVideo(v)) });
+  // Player configs first: they know every quality, not just the one playing
+  // (an HLS player's <video> only shows blob:). Scanned on menu open only.
+  for (const c of [...configsIn(document), ...extraConfigs].slice(0, 80)) groups.push(...jsonSources(c, base));
+  // What the player actually streams: the variants of the playlists it loaded.
+  const hls = capturedSources();
+  groups.push({ title: t("vid.thisVideo"), sources: [...hls.sources, ...conv(rawFromVideo(v))], generic: true });
 
   const others: RawSource[] = [];
-  document.querySelectorAll("video").forEach((o) => o !== v && others.push(...rawFromVideo(o)));
+  document.querySelectorAll("video").forEach((o) => o !== v && !looksLikeAd(o) && others.push(...rawFromVideo(o)));
   if (window === window.top) {
     const metas = 'meta[property="og:video"],meta[property="og:video:url"],meta[property="og:video:secure_url"],' +
       'meta[property="twitter:player:stream"],meta[name="twitter:player:stream"]';
@@ -299,7 +467,13 @@ function collect(v: HTMLVideoElement): VideoGroup[] {
       if (c && isMediaUrl(c)) others.push({ url: c });
     });
   }
-  groups.push({ title: t("vid.pageVideos"), sources: conv(others) });
+  groups.push({ title: t("vid.pageVideos"), sources: conv(others), generic: true });
+
+  // A master playlist is listed as its variants instead ("Auto · HLS" -> 1080p,
+  // 720p, ...). Players often add a query (tokens, cache busters) when loading it.
+  const bare = (u: string) => u.split(/[?#]/)[0];
+  const masters = new Set([...hls.masters].map(bare));
+  for (const g of groups) g.sources = g.sources.filter((s) => s.kind !== "hls" || s.playing || !masters.has(bare(s.url)));
 
   let playing = "";
   try {
@@ -317,21 +491,39 @@ let sizeEls = new Map<string, HTMLElement>();
 
 function openMenu() {
   if (!target || !ui) return;
-  const groups = collect(target);
-  const menu = ui.menu;
-  menu.replaceChildren();
-  sizeEls = new Map();
-  if (!groups.length) {
-    const mse = (target.currentSrc || "").startsWith("blob:");
-    menu.append(el("div", "note", mse ? t("vid.mse") : t("vid.none")));
-  }
-  for (const g of groups) {
-    if (groups.length > 1 && g.title) menu.append(el("div", "head", g.title));
-    for (const s of g.sources) menu.append(item(s));
-  }
-  menu.hidden = false;
+  const v = target;
+  render(v, collect(v));
+  ui.menu.hidden = false;
   menuOpen = true;
   clearTimeout(hideTimer);
+  place();
+  // The page HTML arrives a moment later; redraw if it knew more.
+  void rawPageConfigs().then((extra) => {
+    if (!extra.length || !menuOpen || target !== v) return;
+    const more = collect(v, extra);
+    if (more.flatMap((g) => g.sources).length > shown) render(v, more);
+  });
+}
+
+let shown = 0; // sources in the menu right now
+
+function render(v: HTMLVideoElement, groups: VideoGroup[]) {
+  const menu = ui!.menu;
+  menu.replaceChildren();
+  sizeEls = new Map();
+  shown = groups.flatMap((g) => g.sources).length;
+  if (!groups.length) {
+    const mse = (v.currentSrc || "").startsWith("blob:");
+    menu.append(el("div", "note", mse ? t("vid.mse") : t("vid.none")));
+  }
+  // A player config's title ("Saatini satacaktı dolandırıldı!") beats the
+  // page title ("... | Show Özel Haber") for the generic groups too.
+  const named = groups.find((g) => !g.generic && g.title)?.title;
+  for (const g of groups) {
+    if (groups.length > 1 && g.title) menu.append(el("div", "head", g.title));
+    const name = g.generic || !g.title ? (named ?? pageTitle()) : g.title;
+    for (const s of g.sources) menu.append(item(s, name));
+  }
   place();
   void fillSizes(groups.flatMap((g) => g.sources).filter((s) => s.kind === "file"));
 }
@@ -342,7 +534,7 @@ function closeMenu() {
   menuOpen = false;
 }
 
-function item(s: VideoSource): HTMLElement {
+function item(s: VideoSource, title: string): HTMLElement {
   const b = el("button", "item") as HTMLButtonElement;
   b.type = "button";
   b.title = s.url;
@@ -353,11 +545,14 @@ function item(s: VideoSource): HTMLElement {
   if (s.kind === "stream") {
     b.disabled = true;
     size.textContent = t("vid.stream");
+  } else if (s.kind === "hls") {
+    if (s.estimate) size.textContent = "~" + human(s.estimate);
+    b.addEventListener("click", () => void pick(s, fileNameFor(title, s)));
   } else {
     const n = sizes.get(s.url);
     if (n) size.textContent = human(n);
     sizeEls.set(s.url, size);
-    b.addEventListener("click", () => void pick(s));
+    b.addEventListener("click", () => void pick(s, fileNameFor(title, s)));
   }
   return b;
 }
@@ -379,14 +574,19 @@ async function fillSizes(list: VideoSource[]) {
   }
 }
 
-async function pick(s: VideoSource) {
+async function pick(s: VideoSource, filename: string) {
   closeMenu();
   try {
+    // HLS: send the playlist itself; its URL may only work in this session.
+    const playlist = s.kind === "hls" ? await playlistFor(s.url) : undefined;
     const r = (await ext.runtime.sendMessage({
       type: "odm-video",
       url: s.url,
+      filename,
       referer: location.href,
-      size: sizes.get(s.url) || undefined,
+      size: (s.kind === "hls" ? s.estimate : sizes.get(s.url)) || undefined,
+      media: s.kind === "hls" ? "hls" : undefined,
+      playlist,
     })) as { ok: boolean; error?: string } | undefined;
     if (r && !r.ok) throw new Error(r.error ?? "?");
     flash(t("vid.sent"), true);

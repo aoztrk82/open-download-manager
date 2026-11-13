@@ -63,7 +63,7 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Request proto.Request `json:"request"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<20)).Decode(&body); err != nil { // may carry a playlist
 		writeErr(w, 400, "bad json: "+err.Error())
 		return
 	}

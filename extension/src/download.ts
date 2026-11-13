@@ -71,6 +71,9 @@ async function main() {
   };
   nameInput.addEventListener("input", () => showFacts(state.local.probe ?? state.remote.probe));
 
+  // A browser cannot save a stream as one file: only ODM can.
+  if (req.media) $("btn-browser").hidden = true;
+
   // ---- destinations ----
   const state: Record<Target, TargetState> = { local: {}, remote: {} };
   if (remote) $("remote-label").textContent = remote.label;
@@ -88,7 +91,8 @@ async function main() {
         if (tg === "local") status.textContent = t("dlg.starting");
         st.client = await clientFor(tg, s);
         st.info = await st.client.info();
-        if (!hints.size || hints.resumable === undefined || !hints.filename) {
+        // Never probe a stream: its playlist URL may only work once.
+        if (!req.media && (!hints.size || hints.resumable === undefined || !hints.filename)) {
           st.probe = await st.client.probe(req).catch(() => null);
           if (st.probe?.filename && !hints.filename && !userRenamed) nameInput.value = st.probe.filename;
         }

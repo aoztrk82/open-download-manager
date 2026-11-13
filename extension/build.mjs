@@ -24,8 +24,9 @@ for (const target of ["chrome", "firefox"]) {
     logLevel: "warning",
   });
   // Content scripts cannot be ES modules: a separate classic (IIFE) bundle.
+  // hook.js runs in the page's world (manifest "world": "MAIN").
   await build({
-    entryPoints: { content: "src/content.ts" },
+    entryPoints: { content: "src/content.ts", hook: "src/hook.ts" },
     outdir: out,
     bundle: true,
     format: "iife",

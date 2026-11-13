@@ -232,7 +232,8 @@ async function handOff(req: DownloadRequest, hints: Hints, s: Settings) {
     await (await clientFor(target, s)).add(req, { filename: hints.filename });
     await report(true, t("bg.sent", { where: targetName(target, s), url: req.url }));
   } catch (e) {
-    if (target === "remote") {
+    // A stream cannot go back to the browser: it would only save the playlist.
+    if (target === "remote" || req.media) {
       await report(false, (e as Error).message);
       return;
     }
@@ -337,6 +338,8 @@ interface Message {
   filename?: string;
   referer?: string;
   size?: number;
+  media?: string; // "hls"
+  playlist?: string;
 }
 
 ext.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
@@ -354,8 +357,18 @@ ext.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
     const url = msg.url;
     return answer(
       (async () => {
-        const hints: Hints = { size: msg.size && msg.size > 0 ? msg.size : undefined };
-        await handOff(await buildRequest(url, msg.referer), hints, await settings());
+        const hints: Hints = {
+          size: msg.size && msg.size > 0 ? msg.size : undefined,
+          // "<title> (<quality>).mp4" from the page; CDN names are often hashes.
+          filename: typeof msg.filename === "string" && msg.filename.trim() ? msg.filename.trim().slice(0, 200) : undefined,
+        };
+        const req = await buildRequest(url, msg.referer);
+        if (msg.media === "hls") {
+          const playlist = typeof msg.playlist === "string" && msg.playlist.length <= 16 << 20 ? msg.playlist : undefined;
+          req.media = { kind: "hls", playlist };
+          hints.resumable = true; // pieces are kept across pauses
+        }
+        await handOff(req, hints, await settings());
       })(),
     );
   }

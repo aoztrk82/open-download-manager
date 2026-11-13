@@ -75,6 +75,8 @@ export interface DownloadRequest {
   cookies?: string;
   referer?: string;
   userAgent?: string;
+  /** A stream (HLS) rather than one file; playlist = the text the player received. */
+  media?: { kind: "hls"; playlist?: string };
 }
 
 /** What the browser already told us about a captured download. */

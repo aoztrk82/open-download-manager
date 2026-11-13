@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -134,6 +135,11 @@ func (m *Manager) Probe(ctx context.Context, req proto.Request) (proto.Info, err
 	if err != nil {
 		return proto.Info{}, err
 	}
+	if req.Media != nil {
+		// A stream's size is only known once its pieces are in, and probing a
+		// session-bound playlist URL could use up its one allowed fetch.
+		return proto.Info{Size: -1, AcceptRanges: true}, nil
+	}
 	return src.Probe(ctx, req)
 }
 
@@ -191,10 +197,18 @@ func (m *Manager) Remove(id string, deleteFile bool) error {
 }
 
 // removeFile retries for a while: a cancelled worker may still hold the file
-// open for a moment, and Windows refuses to delete open files.
+// open for a moment, and Windows refuses to delete open files. An unfinished
+// stream download is a "<name>.parts" folder of pieces (engine/hls.go).
 func removeFile(path string) {
+	remove := os.Remove
+	if fi, err := os.Stat(path); err == nil && fi.IsDir() {
+		if !strings.HasSuffix(path, ".parts") {
+			return // never delete a folder ODM did not create
+		}
+		remove = os.RemoveAll
+	}
 	for i := 0; i < 25; i++ {
-		if err := os.Remove(path); err == nil || os.IsNotExist(err) {
+		if err := remove(path); err == nil || os.IsNotExist(err) {
 			return
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -289,8 +303,7 @@ func (m *Manager) run(ctx context.Context, d *store.Download) {
 	// &d.State let the callback below swap the segment array under the running
 	// segments: a racing Done increment could be lost and later chunks written
 	// at the wrong offset. Callbacks receive snapshots, which nobody mutates.
-	st := d.State
-	st.Segments = append([]engine.Segment(nil), d.State.Segments...)
+	st := d.State.Clone()
 	err := m.engine.Run(ctx, &st, engine.Options{
 		Req: d.Req, Dir: d.Dir, Filename: d.Filename,
 		Connections: m.cfg.Connections, RateLimit: m.cfg.RateLimit,

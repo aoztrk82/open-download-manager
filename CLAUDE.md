@@ -26,7 +26,11 @@ internal/web       go:embed Web UI (static/index.html, single file, VS Code / qB
 internal/extbundle go:embed of the extensions: files/chrome (copied by `pnpm build`, gitignored) and
                    files/odm-firefox.xpi (AMO-signed unlisted, committed: needs the owner's keys to rebuild)
 internal/ffmpeg    finds ffmpeg ($ODM_FFMPEG, next to odm.exe, PATH) and remuxes with -c copy only
-extension/         shared TS built twice (dist/chrome, dist/firefox); MV3; src/content.ts = video button
+internal/hls       HLS playlist parsing: master variants; media items (segments, AES keys, fMP4 init,
+                   byte ranges) + a local playlist for ffmpeg. engine/hls.go downloads them in parallel into
+                   "<name>.parts" (resumable, State.HLS), then ffmpeg -> MP4 (or plain TS concat without ffmpeg)
+extension/         shared TS built twice (dist/chrome, dist/firefox); MV3; src/content.ts = video button;
+                   src/hook.ts runs in the page world (MAIN) and reports fetch/XHR bodies starting "#EXTM3U"
 installer/odm.iss  Inno Setup script: odm.exe + ffmpeg.exe, per-user, stops ODM with `odm quit` first
 ```
 - **Distribution is an installer, not a portable exe.** ffmpeg ships inside it (users never install it
@@ -100,6 +104,13 @@ Web UI has no build step; check syntax by extracting the `<script>` and running 
 - Bash heredocs with quotes broke several times in this environment; write files with the Write tool and run
   helper scripts from files.
 - Say plainly what was and was not tested. Many GUI/browser paths are only compile-checked.
+- Browser checks without touching the owner's Chrome: a separate debug Chrome
+  (`--remote-debugging-port=9333 --enable-unsafe-extension-debugging --user-data-dir=%TEMP%\odm-cdp-profile`),
+  extension loaded with CDP `Extensions.loadUnpacked` (`--load-extension` is gone since Chrome 137), DOM with
+  `pierce: true` reaches the overlay's closed shadow root. Stop only that Chrome (its PID). The owner allowed this
+  on 2026-11-13 ("this PC is barely used"). The owner's own Chrome has uBlock: ads there hide problems.
+- Never point tests at the owner's running ODM (127.0.0.1:6800): use `serve --listen 127.0.0.1:6899 --token`
+  with an isolated APPDATA.
 
 ## Gotchas already solved (do not re-learn)
 - Cobra "mousetrap" refuses to run when launched from Explorer: `cobra.MousetrapHelpText = ""` in `main()`.

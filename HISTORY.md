@@ -18,6 +18,19 @@ Newest first. Commit hashes refer to `git log`.
 - `installer/odm.iss` + `scripts/build-installer.ps1`: per-user Inno Setup (7.5 MB) with odm.exe and ffmpeg.
   `odm quit` stops tray + window through a named event (no new API surface) so upgrades can replace files.
   Tray autostart now writes `tray --background`. The installer was built but not run (see TODO 0c).
+- Owner on Show TV: "it downloaded the mp4, but the other qualities were missing and the name was a hash".
+  The player removes its `data-hope-video` config once it starts (only JSON-LD's 1080p stayed), so the page's
+  own HTML is fetched and scanned too; configs are found generically (any JSON attribute/script with media
+  URLs, grouped by title), and files are named "<title> (<quality>).<ext>".
+- Owner: tranimeizle "not supported". Inspected with a debug Chrome over CDP (owner's permission): JW Player,
+  HLS playlist from a session-bound `/w/<token>` (octet-stream), segments are plain MPEG-TS named `.jpeg`.
+  HLS support: `hook.ts` in the page world catches playlist bodies by content; the menu lists every variant
+  with an estimated size; the playlist text travels with the request (`proto.Request.Media`), since the URL may
+  not work outside the session; `internal/hls` + `engine/hls.go` download pieces in parallel (resumable,
+  cookies only to the page's host), ffmpeg joins them (AES-128, fMP4) into MP4.
+- An ad SDK iframe over the player swallowed every mouse event (Chrome reports nothing to the page about a
+  pointer in a cross-process iframe), so the button never showed while ads ran without uBlock: frames now pass
+  the pointer position up to their parent. Ad `<video>`s (IMA) are skipped when picking the hovered video.
 
 ## 2026-11-12 - fifth session
 - Dynamic connections (owner: "why always 4?"). The engine starts with one segment and 2 connections, adds a

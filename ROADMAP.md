@@ -31,8 +31,9 @@ download. One Go core shared by CLI, server and tray app; one TypeScript codebas
 - Torrent/magnet support is explicitly **not** planned.
 
 ## Media (owner's request, 2026-11-13; replaces the earlier "no media sites")
-- Done: video button in the extension (direct files, archive.org playlists); installer bundling a small
-  remux-only ffmpeg; `internal/ffmpeg`.
-- Next: sniff `.m3u8`/`.mpd` per tab in the extension (Chrome needs the `webRequest` permission), HLS downloader in
-  the engine (variant choice, parallel segments, AES-128), remux to MP4 with ffmpeg; then DASH (audio + video).
+- Done: video button (direct files, player configs in JSON attributes/scripts, page HTML re-read); installer
+  bundling a small remux-only ffmpeg; HLS end to end (playlists caught by content in the page world, every
+  variant listed with an estimated size, ODM downloads pieces in parallel, resumable, AES-128, fMP4, -> MP4).
+- Next: DASH (.mpd: separate audio + video, ffmpeg merges); HLS with separate audio renditions
+  (#EXT-X-MEDIA TYPE=AUDIO); progress/ETA for streams in the Web UI (size is an estimate until the end).
 - Maybe: hand YouTube-like sites to a user-installed yt-dlp. Never: DRM (Widevine) content.
