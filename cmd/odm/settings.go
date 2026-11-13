@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/time/rate"
 
@@ -91,6 +92,7 @@ func (st *settingsStore) queueConfig(s config.Settings) queue.Config {
 		DefaultDir: s.Dir(), MaxConcurrent: s.MaxActive, Connections: s.Connections,
 		RateLimit: s.SpeedLimit * 1024, Shared: st.shared,
 		DirFor: s.DirFor, ConnectionsFor: s.ConnectionsFor, Log: applog.L(),
+		LaterDelay: time.Duration(s.LaterDelay) * time.Second, LaterDue: s.LaterDue,
 	}
 	if f := st.flags; f.MaxActive > 0 {
 		c.MaxConcurrent = f.MaxActive

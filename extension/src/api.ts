@@ -126,6 +126,8 @@ export interface AddOptions {
   filename?: string;
   dir?: string;
   paused?: boolean;
+  /** "main": one after another; "later": waits for the later queue. */
+  queue?: "main" | "later";
 }
 
 /**
@@ -168,7 +170,7 @@ export class OdmClient {
   }
   list() { return this.call<Download[]>("GET", "/downloads"); }
   add(request: DownloadRequest, o: AddOptions = {}) {
-    return this.call<Download>("POST", "/downloads", { request, filename: o.filename, dir: o.dir, paused: o.paused });
+    return this.call<Download>("POST", "/downloads", { request, filename: o.filename, dir: o.dir, paused: o.paused, queue: o.queue });
   }
   /** Adds a line to ODM's download log (only when it keeps one). */
   log(msg: string, fields: Record<string, unknown>) { return this.call<void>("POST", "/log", { msg, fields }, 3_000); }

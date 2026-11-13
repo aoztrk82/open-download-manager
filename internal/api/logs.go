@@ -49,7 +49,7 @@ func logAdd(r *http.Request, req queue.AddRequest, id, dir string) {
 	} else {
 		args = append(args, "kind", "file")
 	}
-	args = append(args, "name", req.Filename, "dir", dir, "paused", req.Paused,
+	args = append(args, "name", req.Filename, "dir", dir, "queue", req.Queue, "paused", req.Paused,
 		"cookies", strings.Count(q.Cookies, "=")) // how many, never the values
 	applog.L().Info("add", args...)
 }

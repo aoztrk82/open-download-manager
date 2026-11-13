@@ -51,7 +51,7 @@ async function main() {
   const status = $("status");
   const nameInput = $<HTMLInputElement>("name");
   const dirInput = $<HTMLInputElement>("dir");
-  const buttons = ["btn-download", "btn-later", "btn-browser", "browse"].map((b) => $<HTMLButtonElement>(b));
+  const buttons = ["btn-download", "btn-later", "btn-queue", "btn-browser", "browse"].map((b) => $<HTMLButtonElement>(b));
 
   // ---- file facts: browser hints first, probe fills the gaps ----
   const suggested = hints.filename || nameFromUrl(req.url);
@@ -172,7 +172,7 @@ async function main() {
     }
   });
 
-  async function send(kind: "now" | "later" | "browser") {
+  async function send(kind: "now" | "queue" | "later" | "browser") {
     busy(true);
     status.className = "";
     status.textContent = t("dlg.sending");
@@ -195,7 +195,10 @@ async function main() {
         await st.client.add(req, {
           filename: userRenamed || hints.filename ? filename : undefined,
           dir: dir || undefined,
+          // "later": the later queue (Start button or schedule in ODM); an
+          // older ODM without queues ignores queue and keeps it paused.
           paused: kind === "later",
+          queue: kind === "queue" ? "main" : kind === "later" ? "later" : undefined,
         });
         await rememberDir(target, dir);
         if ($<HTMLInputElement>("dont-ask").checked) {
@@ -208,7 +211,7 @@ async function main() {
         true,
         kind === "browser"
           ? t("bg.browser", { url: req.url })
-          : t(kind === "later" ? "bg.later" : "bg.sent", { where, url: req.url }),
+          : t(kind === "later" ? "bg.later" : kind === "queue" ? "bg.queued" : "bg.sent", { where, url: req.url }),
       );
       window.close();
     } catch (e) {
@@ -220,6 +223,7 @@ async function main() {
 
   $("btn-download").addEventListener("click", () => send("now"));
   $("btn-later").addEventListener("click", () => send("later"));
+  $("btn-queue").addEventListener("click", () => send("queue"));
   $("btn-browser").addEventListener("click", () => send("browser"));
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") window.close();

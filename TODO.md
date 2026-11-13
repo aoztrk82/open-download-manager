@@ -39,6 +39,16 @@ downloaded by an isolated daemon, the Web UI dialog against an isolated daemon (
 - [ ] "Update yt-dlp" button in the installed program (-U needs a writable install dir; per-user install is).
 - [ ] Owner's own Chrome: YouTube menu -> dialog -> their ODM.
 
+## 0g. Queues (sixth session, end)
+Tested: Go tests (order, one at a time, move up/down, later waits, wait between, stop -> back to waiting,
+schedule hook, resume = start now, moves survive a running download's saves), schedule maths (once, daily,
+midnight), isolated daemon end to end + Web UI screenshots. `go test -race` could not start on this PC
+(ThreadSanitizer allocation error 87), so the new queue code has no race run yet.
+- [ ] Owner: extension dialog with 4 buttons (layout at 540 px not seen), schedule firing for real at a set
+      time with the tray running, Start/Stop from the toolbar.
+- Not done: queue state after a restart (a running later queue is stopped after ODM restarts; its downloads
+  wait), per-queue "downloads at once", "stop at" time, shutdown when the queue is done.
+
 ## 0f. Download log (sixth session, end)
 Tested on an isolated daemon: the mail.ru page sent as a "file" fails with "the server sent a web page" and the
 log shows `probe ... type="text/html"`; the same page via yt-dlp starts (81 MiB, deleted); extension POST

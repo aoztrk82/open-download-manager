@@ -20,7 +20,12 @@ internal/engine    segmented, resumable download engine (State is persisted for 
                    per-host limit; verify() checks the ranges tile the file before .part is renamed
 internal/proto     Source interface; http.go (Range probe) and ftp.go (not yet run against a real server)
 internal/store     SQLite (modernc, no cgo): downloads table, state as JSON
-internal/queue     scheduler, persistence, events, Remove(deleteFile)
+internal/queue     scheduler, persistence, events, Remove(deleteFile). queues.go: downloads with Queue "" start
+                   up to MaxConcurrent; "main" runs one at a time in QPos order; "later" waits for StartLater
+                   (button, or Settings > Queue schedule via LaterDue) and runs one at a time with LaterDelay
+                   (default 60 s) between, stopping when empty. Queue/QPos are written only by store.SetQueue
+                   (a running download's own saves must not undo a move). API /v1/queues, /queues/later/start|stop,
+                   /downloads/{id}/queue, /downloads/{id}/move
 internal/api       REST + WebSocket server, Go client, auth/origin guards (api_test.go)
 internal/web       go:embed Web UI (static/index.html, single file, VS Code / qBittorrent look)
 internal/extbundle go:embed of the extensions: files/chrome (copied by `pnpm build`, gitignored) and

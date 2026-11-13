@@ -55,6 +55,14 @@ Newest first. Commit hashes refer to `git log`.
   HTML. Fixed in the extension (the page is never a source; mail.ru goes to yt-dlp, which supports it) and in
   ODM (a text/html answer for a video/audio name is refused with a clear error). A repo-root dev build also
   finds `dist\yt-dlp\yt-dlp.exe`.
+- Queues (owner: "Download, Add to queue, Later; Later is a standby queue with Start and a schedule; a wait
+  between downloads, default 60 s"). Main queue: one after another as soon as added. Later queue: waits for
+  Start (toolbar, queue bar) or the schedule (date+time, optionally daily), one after another with the wait,
+  stops when empty; Stop puts the running one back at the head. Extension dialog got "Add to queue"; "Later"
+  now means the later queue (older ODMs keep it paused). Web UI: sidebar Queues, queue bar, "When" in the Add
+  and yt-dlp dialogs, context menu (to queue / later / out, move up/down), Settings > Queue. Later-queue
+  downloads open no progress/complete windows (unattended). Verified on an isolated daemon (2 + 2 files,
+  never two at once, 3 s wait, queue stopped itself, log lines).
 - Test incident: an end-to-end script clicked the first "primary" button in the Settings dialog, which was
   "Install in Firefox", and the test daemon opened the owner's Firefox (closed again by its PID) and saved a
   test file to the real Downloads (deleted). Fixed the cause: dialog Enter/primary only means the footer

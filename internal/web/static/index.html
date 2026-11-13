@@ -213,6 +213,9 @@
 .logview { margin:0; flex:1; min-height:260px; max-height:340px; overflow:auto; background:var(--bg); border:1px solid var(--line); border-radius:3px;
   padding:8px; font:11px/1.45 Consolas, "Cascadia Mono", monospace; white-space:pre-wrap; overflow-wrap:anywhere; user-select:text; color:var(--fg); }
 .hrow { display:flex; gap:6px; margin-bottom:6px; } .hrow .h-host { flex:1; min-width:0; }
+#qbar { display:flex; align-items:center; gap:8px; padding:6px 12px; background:var(--panel); border-bottom:1px solid var(--line); font-size:12px; flex-shrink:0; }
+#qbar .grow { flex:1; } #qbar .qinfo { color:var(--fg); } #qbar .qinfo b { color:var(--fg-strong); font-weight:600; }
+#qbar .qinfo .on { color:var(--ok); } #qbar .qinfo .off { color:var(--warn); }
 .integ { display:flex; flex-direction:column; gap:8px; }
   .integ .row { border:1px solid var(--line); border-radius:3px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
   .integ .head { display:flex; align-items:center; gap:10px; }
@@ -280,6 +283,8 @@
   <button class="tb" data-act="resume" id="tb-resume" data-i18n-title="m.resume" title="Resume"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg><span data-i18n="m.resume">Resume</span></button>
   <button class="tb" data-act="pause" id="tb-pause" data-i18n-title="m.pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg><span data-i18n="m.pause">Pause</span></button>
   <button class="tb" data-act="remove" id="tb-remove" data-i18n-title="tb.removeTitle" title="Remove (Del)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg><span data-i18n="m.remove">Remove</span></button>
+  <div class="vsep"></div>
+  <button class="tb" data-act="laterToggle" id="tb-later" data-i18n-title="tb.laterTitle" title="Start or stop the Later queue"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/><path id="tb-later-ic" d="M10.5 12.5v5l4-2.5z"/></svg><span id="tb-later-label" data-i18n="tb.laterStart">Start Queue</span></button>
   <div class="vsep" data-needs="settings" hidden></div>
   <button class="tb" data-act="settings" data-needs="settings" data-i18n-title="tb.settingsTitle" title="Settings (Ctrl+,)" hidden><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span data-i18n="tb.settings">Settings</span></button>
   <input id="search" type="search" data-i18n-ph="search.ph" placeholder="Filter downloads…">
@@ -294,12 +299,18 @@
     <div class="nav" data-filter="paused"><svg class="ic" viewBox="0 0 24 24" style="color:var(--warn)"><path d="M9 6v12M15 6v12"/></svg><span data-i18n="status.paused">Paused</span><span class="count" id="c-paused">0</span></div>
     <div class="nav" data-filter="completed"><svg class="ic" viewBox="0 0 24 24" style="color:var(--status)"><path d="M5 12.5l4.5 4.5L19 7"/></svg><span data-i18n="status.completed">Completed</span><span class="count" id="c-completed">0</span></div>
     <div class="nav" data-filter="failed"><svg class="ic" viewBox="0 0 24 24" style="color:var(--bad)"><circle cx="12" cy="12" r="8"/><path d="M9 9l6 6M15 9l-6 6"/></svg><span data-i18n="status.failed">Failed</span><span class="count" id="c-failed">0</span></div>
+    <div class="sec" data-i18n="side.queues">Queues</div>
+    <div class="nav" data-filter="queue:main"><svg class="ic" viewBox="0 0 24 24" style="color:var(--accent)"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><span data-i18n="q.main">Queue</span><span class="count" id="c-qmain">0</span></div>
+    <div class="nav" data-filter="queue:later"><svg class="ic" viewBox="0 0 24 24" style="color:var(--warn)"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4M12 13v3l2 1"/></svg><span data-i18n="q.later">Later</span><span class="count" id="c-qlater">0</span></div>
     <div class="sec" data-i18n="side.protocols">Protocols</div>
     <div class="nav" data-filter="proto:http"><svg class="ic" viewBox="0 0 24 24" style="color:var(--muted)"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/></svg><span>HTTP / HTTPS</span><span class="count" id="c-http">0</span></div>
     <div class="nav" data-filter="proto:ftp"><svg class="ic" viewBox="0 0 24 24" style="color:var(--muted)"><rect x="4" y="5" width="16" height="6" rx="1.5"/><rect x="4" y="13" width="16" height="6" rx="1.5"/><path d="M8 8h.01M8 16h.01"/></svg><span>FTP / FTPS</span><span class="count" id="c-ftp">0</span></div>
   </div>
   <div class="split-v" id="split-side" data-i18n-title="split.title" title="Drag to resize"></div>
   <div id="center">
+    <div id="qbar" hidden><span class="qinfo" id="qb-info"></span><span class="grow"></span>
+      <button class="btn small" id="qb-sched" data-act="schedule" data-needs="settings" hidden></button>
+      <button class="btn small primary" id="qb-toggle" data-act="laterToggle"></button></div>
     <div id="tablewrap" tabindex="0">
       <table id="tbl">
         <colgroup><col style="width:34%"><col style="width:11%"><col style="width:17%"><col style="width:11%"><col style="width:11%"><col style="width:8%"><col style="width:8%"></colgroup>
@@ -330,6 +341,12 @@
 <div id="ctx"><div class="dropdown">
   <div class="item" data-act="resume"><span data-i18n="m.resume">Resume</span></div>
   <div class="item" data-act="pause"><span data-i18n="m.pause">Pause</span></div>
+  <div class="sep"></div>
+  <div class="item" data-act="toMain"><span data-i18n="m.toMain">Add to Queue</span></div>
+  <div class="item" data-act="toLater"><span data-i18n="m.toLater">Move to Later</span></div>
+  <div class="item" data-act="noQueue" id="ctx-noqueue"><span data-i18n="m.noQueue">Take Out of Queue</span></div>
+  <div class="item" data-act="moveUp" id="ctx-up"><span data-i18n="m.up">Move Up</span></div>
+  <div class="item" data-act="moveDown" id="ctx-down"><span data-i18n="m.down">Move Down</span></div>
   <div class="sep"></div>
   <div class="item" data-act="reveal" data-needs="reveal"><span data-i18n="m.reveal">Show in Folder</span></div>
   <div class="item" data-act="copyUrl"><span data-i18n="m.copyUrl">Copy URL</span></div>
@@ -388,6 +405,8 @@ async function api(path, opts = {}) {
 
 /* ---------- state ---------- */
 let items = [];                 // latest list from server
+let queues = null;              // GET /v1/queues: {main, later: {running, waiting, active, nextAt}}
+let qsched = null;              // Settings > Queue schedule (local daemon), for the queue bar
 const speedOf = new Map();      // id -> {bytes, t, bps}
 let filter = "all", query = "", sortKey = "added", sortDesc = true;
 let selected = new Set(), anchor = null;
@@ -433,6 +452,7 @@ const eta = d => { const s = bps(d); return d.status === "active" && s > 0 && d.
 /* ---------- rendering ---------- */
 function matches(d) {
   if (filter.startsWith("proto:")) { if (proto(d) !== filter.slice(6)) return false; }
+  else if (filter.startsWith("queue:")) { if ((d.queue || "") !== filter.slice(6) || d.status === "completed") return false; }
   else if (filter !== "all" && d.status !== filter) return false;
   if (query) return (nameOf(d) + " " + d.request.url).toLowerCase().includes(query);
   return true;
@@ -444,10 +464,17 @@ const sorters = {
   added:(a,b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
 };
 function visible() {
+  // A queue is shown in its own order (what runs next is on top).
+  if (filter.startsWith("queue:")) return items.filter(matches).sort((a, b) => (a.qpos || 0) - (b.qpos || 0));
   const v = items.filter(matches).sort(sorters[sortKey]);
   return sortDesc ? v.reverse() : v;
 }
 const cap = s => s[0].toUpperCase() + s.slice(1);
+// Waiting in a queue reads differently from waiting for a free slot.
+const statusText = d => {
+  if (d.status !== "queued" || !d.queue) return t("status." + d.status);
+  return d.queue === "later" && !(queues && queues.later.running) ? t("status.later") : t("status.inQueue");
+};
 
 function render() {
   const list = visible();
@@ -457,7 +484,7 @@ function render() {
       <td title="${esc(d.request.url)}">${esc(nameOf(d))}</td>
       <td class="num">${d.size > 0 ? fmtBytes(d.size) : "—"}</td>
       <td><div class="progcell"><i style="width:${p}%"></i><span>${p.toFixed(1)}%</span></div></td>
-      <td class="st-${d.status}">${t("status." + d.status)}</td>
+      <td class="st-${d.status}">${statusText(d)}</td>
       <td class="num">${d.status === "active" ? fmtBytes(bps(d)) + "/s" : ""}</td>
       <td class="num">${fmtEta(eta(d))}</td>
       <td class="num">${fmtDate(Date.parse(d.createdAt))}</td></tr>`;
@@ -471,6 +498,9 @@ function render() {
   const cnt = { all:items.length, active:0, queued:0, paused:0, completed:0, failed:0, http:0, ftp:0 };
   for (const d of items) { cnt[d.status]++; cnt[proto(d)]++; }
   for (const k in cnt) $("c-" + k).textContent = cnt[k];
+  $("c-qmain").textContent = items.filter(d => d.queue === "main" && d.status !== "completed").length;
+  $("c-qlater").textContent = items.filter(d => d.queue === "later" && d.status !== "completed").length;
+  renderQueueBar();
   // status bar
   const total = items.reduce((a, d) => a + bps(d), 0);
   $("s-speed").textContent = t("st.down", { speed:fmtBytes(total) });
@@ -482,6 +512,45 @@ function render() {
   $("tb-resume").disabled = !sel.some(d => d.status === "paused" || d.status === "failed");
   $("tb-remove").disabled = sel.length === 0;
   renderDetails(sel);
+}
+
+/* ---------- queues ---------- */
+// The later queue: Start / Stop on the toolbar and in the bar above its list.
+function fmtSched(s) {
+  if (!s || !s.enabled || !s.at) return t("qb.noSchedule");
+  const at = new Date(s.at); // "2026-11-14T02:00" = local time
+  if (isNaN(at)) return t("qb.noSchedule");
+  const time = at.toLocaleTimeString(lang, { hour:"2-digit", minute:"2-digit" });
+  return s.daily ? t("qb.daily", { time }) : t("qb.once", { when:at.toLocaleDateString(lang, { day:"2-digit", month:"short" }) + " " + time });
+}
+async function loadSched() {
+  if (!info || !info.canSettings) return;
+  try { qsched = (await api("/settings")).schedule; } catch { /* keep the last */ }
+  renderQueueBar();
+}
+function renderQueueBar() {
+  const lq = queues ? queues.later : null, running = !!(lq && lq.running);
+  $("tb-later-label").textContent = t(running ? "tb.laterStop" : "tb.laterStart");
+  $("tb-later-ic").setAttribute("d", running ? "M10 12.5v5M14 12.5v5" : "M10.5 12.5v5l4-2.5z");
+  $("tb-later").disabled = !lq || (!running && !lq.waiting);
+  const q = filter.startsWith("queue:") ? filter.slice(6) : "";
+  $("qbar").hidden = !q || !queues;
+  if (!q || !queues) return;
+  const toggle = $("qb-toggle"), sched = $("qb-sched");
+  if (q === "main") {
+    $("qb-info").innerHTML = t("qb.main", { n:queues.main.waiting });
+    toggle.hidden = true; sched.hidden = true;
+    return;
+  }
+  const parts = [`<b class="${running ? "on" : "off"}">${t(running ? "qb.running" : "qb.stopped")}</b>`, t("qb.waiting", { n:lq.waiting })];
+  if (running && lq.nextAt) parts.push(t("qb.next", { s:Math.max(1, Math.ceil((Date.parse(lq.nextAt) - Date.now()) / 1000)) }));
+  if (info && info.canSettings) parts.push(esc(fmtSched(qsched)));
+  $("qb-info").innerHTML = parts.join(" · ");
+  toggle.hidden = false;
+  toggle.textContent = t(running ? "tb.laterStop" : "tb.laterStart");
+  toggle.disabled = !running && !lq.waiting;
+  sched.hidden = !(info && info.canSettings);
+  sched.textContent = t("qb.schedule");
 }
 
 // Desktop window: overall progress of running downloads on the taskbar button.
@@ -585,7 +654,9 @@ function renderConns(sel) {
 /* ---------- data loop ---------- */
 async function refresh() {
   try {
+    const qs = api("/queues").catch(() => null); // older daemons have no queues
     items = await api("/downloads");
+    queues = await qs;
     if (!online) { online = true; setConn(); }
     updateSpeeds();
     for (const id of [...selected]) if (!items.some(d => d.id === id)) selected.delete(id);
@@ -636,6 +707,17 @@ const actions = {
   signout: () => promptToken(true),
   about: () => aboutDialog(),
   integrations: () => settingsDialog("general"),
+  laterToggle: async () => {
+    const run = queues && queues.later.running;
+    try { queues = await api(`/queues/later/${run ? "stop" : "start"}`, { method:"POST" }); } catch (e) { toast(e.message); }
+    refresh();
+  },
+  schedule: () => settingsDialog("queue"),
+  toMain: () => each(selItems().filter(d => d.status !== "completed"), d => api(`/downloads/${d.id}/queue`, { method:"POST", body:JSON.stringify({ queue:"main" }) })),
+  toLater: () => each(selItems().filter(d => d.status !== "completed"), d => api(`/downloads/${d.id}/queue`, { method:"POST", body:JSON.stringify({ queue:"later" }) })),
+  noQueue: () => each(selItems().filter(d => d.queue), d => api(`/downloads/${d.id}/queue`, { method:"POST", body:JSON.stringify({ queue:"" }) })),
+  moveUp: () => each(selItems().filter(d => d.queue).slice(0, 1), d => api(`/downloads/${d.id}/move`, { method:"POST", body:JSON.stringify({ delta:-1 }) })),
+  moveDown: () => each(selItems().filter(d => d.queue).slice(0, 1), d => api(`/downloads/${d.id}/move`, { method:"POST", body:JSON.stringify({ delta:1 }) })),
   settings: () => settingsDialog(),
   lang: el => setLang(el.dataset.lang),
   resetLayout: () => {
@@ -688,6 +770,11 @@ function dialog(title, bodyHtml, buttons, onClose) {
   (el.querySelector("textarea,input") || el.querySelector(".foot .btn.primary") || el.querySelector(".x")).focus();
   return close;
 }
+// "When": now, one after another (main queue), later queue, or paused.
+const WHEN = ["now", "main", "later", "paused"];
+const whenSelect = id => `<label>${t("add.when")}<select id="${id}">${WHEN.map(w => `<option value="${w}"${(store.get("odm.when") || "now") === w ? " selected" : ""}>${t("add.when." + w)}</option>`).join("")}</select></label>`;
+const whenBody = w => { store.set("odm.when", w); return { paused:w === "paused", queue:w === "main" || w === "later" ? w : "" }; };
+
 function addDialog() {
   const recent = (() => { try { return JSON.parse(store.get("odm.recentDirs") || "[]"); } catch { return []; } })();
   dialog(t("add.title"), `
@@ -696,17 +783,17 @@ function addDialog() {
     <label>${t("add.dir")}<span class="dirrow"><input id="d-dir" list="d-recent" placeholder="${esc(t("add.dirPh", { dir:info ? info.defaultDir : "" }))}">
       ${info && info.canPickFolder ? `<button type="button" class="btn" id="d-browse">${t("add.browse")}</button>` : ""}</span>
       <datalist id="d-recent">${recent.map(d => `<option value="${esc(d)}">`).join("")}</datalist></label>
-    <label class="chk"><input type="checkbox" id="d-paused"> ${t("add.paused")}</label>
+    ${whenSelect("d-when")}
     <div class="err" id="d-err"></div>`, [
     { label:t("btn.cancel") },
     { label:t("add.start"), primary:true, action: async el => {
       const urls = el.querySelector("#d-urls").value.split(/\s+/).filter(Boolean);
       const name = el.querySelector("#d-name").value.trim();
       const dir = el.querySelector("#d-dir").value.trim();
-      const paused = el.querySelector("#d-paused").checked;
+      const when = whenBody(el.querySelector("#d-when").value);
       if (!urls.length) { el.querySelector("#d-err").textContent = t("add.needUrl"); return false; }
       try {
-        for (const u of urls) await api("/downloads", { method:"POST", body:JSON.stringify({ request:{ url:u }, filename: urls.length === 1 ? name : "", dir, paused }) });
+        for (const u of urls) await api("/downloads", { method:"POST", body:JSON.stringify({ request:{ url:u }, filename: urls.length === 1 ? name : "", dir, ...when }) });
       } catch (e) { el.querySelector("#d-err").textContent = e.message; return false; }
       if (dir) store.set("odm.recentDirs", JSON.stringify([dir, ...recent.filter(d => d !== dir)].slice(0, 8)));
       refresh();
@@ -747,7 +834,7 @@ function ytdlpDialog(prefill = "") {
       ${info && info.canPickFolder ? `<button type="button" class="btn" id="y-browse">${t("add.browse")}</button>` : ""}</span>
       <datalist id="y-recent">${recent.map(d => `<option value="${esc(d)}">`).join("")}</datalist></label>
     <label>${t("yt.container")}<select id="y-cont"><option value="mp4">MP4</option><option value="mkv">MKV</option></select></label>
-    <label class="chk"><input type="checkbox" id="y-paused"> ${t("add.paused")}</label>
+    ${whenSelect("y-when")}
     <div class="yt-tools"><span id="y-ver" class="grow"></span><button type="button" class="btn small" id="y-update">${t("yt.update")}</button></div>
     <div class="err" id="y-err"></div>`, [
     { label:t("btn.cancel") },
@@ -845,7 +932,7 @@ function ytdlpDialog(prefill = "") {
     err("");
     const h = chosenHeight(), container = q("#y-cont").value;
     const media = { kind:"ytdlp", format:ytFormat(h), container };
-    const dir = q("#y-dir").value.trim(), paused = q("#y-paused").checked;
+    const dir = q("#y-dir").value.trim(), when = whenBody(q("#y-when").value);
     const jobs = [];
     if (probe.kind === "playlist") {
       const picked = [...root.querySelectorAll(".yt-list input:checked")].map(c => +c.dataset.i);
@@ -860,10 +947,10 @@ function ytdlpDialog(prefill = "") {
       for (const i of picked) {
         const e = probe.entries[i];
         const name = `${String(i + 1).padStart(width, "0")} - ${safeName(e.title) || e.id}${h > 0 ? ` (${h}p)` : ""}.${extFor(h)}`;
-        jobs.push({ request:{ url:e.url, media }, filename:name, dir:target, paused });
+        jobs.push({ request:{ url:e.url, media }, filename:name, dir:target, ...when });
       }
     } else {
-      jobs.push({ request:{ url:probe.url || probedUrl, media }, filename:q("#y-name").value.trim(), dir, paused });
+      jobs.push({ request:{ url:probe.url || probedUrl, media }, filename:q("#y-name").value.trim(), dir, ...when });
     }
     const ok = q(".btn.primary"); ok.disabled = true;
     try {
@@ -940,7 +1027,7 @@ async function renderIntegrations(box, err) {
 /* ---------- settings ---------- */
 // Local daemon only (info.canSettings). Saved in prefs.json and applied at once;
 // file-type and site rules are read by the browser extensions when they capture.
-const SET_TABS = ["general", "types", "save", "downloads", "conn", "log"];
+const SET_TABS = ["general", "types", "save", "downloads", "conn", "queue", "log"];
 const lines = s => s.split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
 async function settingsDialog(tab = store.get("odm.settab") || "general") {
   let cur;
@@ -995,6 +1082,15 @@ async function settingsDialog(tab = store.get("odm.settab") || "general") {
       </div>
       <div class="shint">${t("set.limitHint")}</div>
     </div>
+    <div class="spane" data-pane="queue">
+      <div class="shint" style="margin-top:0">${t("set.qIntro")}</div>
+      <label>${t("set.qDelay")}<input type="number" id="o-qdelay" min="0" max="86400" value="${cur.laterDelay ?? 60}" style="width:110px"></label>
+      <div class="sgroup"><div class="sh">${t("set.qSched")}</div>
+        <label class="chk"><input type="checkbox" id="o-qsched"${cur.schedule && cur.schedule.enabled ? " checked" : ""}> ${t("set.qSchedOn")}</label>
+        <div class="row2"><label style="flex:1">${t("set.qAt")}<input type="datetime-local" id="o-qat" value="${esc((cur.schedule && cur.schedule.at) || "")}"></label></div>
+        <label class="chk"><input type="checkbox" id="o-qdaily"${cur.schedule && cur.schedule.daily ? " checked" : ""}> ${t("set.qDaily")}</label>
+        <div class="shint">${t("set.qSchedHint")}</div></div>
+    </div>
     <div class="spane" data-pane="log">
       <label class="chk"><input type="checkbox" id="o-log"${cur.log ? " checked" : ""}> ${t("set.log")}</label>
       <div class="shint">${t("set.logHint")}</div>
@@ -1022,6 +1118,8 @@ async function settingsDialog(tab = store.get("odm.settab") || "general") {
         hostConnections:[...el.querySelectorAll(".hrow")].map(r => ({ host:r.querySelector(".h-host").value.trim(), connections:+r.querySelector(".h-conns").value })).filter(h => h.host),
         speedLimit:Math.max(0, Math.round(+q("#o-speed").value || 0)), totalLimit:Math.max(0, Math.round(+q("#o-total").value || 0)),
         log:q("#o-log").checked,
+        laterDelay:Math.max(0, Math.round(+q("#o-qdelay").value || 0)),
+        schedule:{ enabled:q("#o-qsched").checked, at:q("#o-qat").value, daily:q("#o-qdaily").checked },
       };
       if (q("#o-auto")) next.autostart = q("#o-auto").checked;
       try { await api("/settings", { method:"PUT", body:JSON.stringify(next) }); }
@@ -1029,6 +1127,7 @@ async function settingsDialog(tab = store.get("odm.settab") || "general") {
       const l = q("#o-lang").value;
       if (l !== lang) setLang(l);
       try { info = await api("/info"); } catch {}
+      loadSched();
       $("s-dir").textContent = dirLabel();
       toast(t("set.saved"));
     } }]);
@@ -1142,8 +1241,11 @@ $("tablewrap").addEventListener("contextmenu", e => {
   const tr = e.target.closest("tr[data-id]");
   if (tr && !selected.has(tr.dataset.id)) { selected = new Set([tr.dataset.id]); anchor = tr.dataset.id; render(); }
   if (!selected.size) return;
+  const sel = selItems(), oneInQueue = sel.length === 1 && !!sel[0].queue;
+  $("ctx-noqueue").hidden = !sel.some(d => d.queue);
+  $("ctx-up").hidden = $("ctx-down").hidden = !oneInQueue;
   const c = $("ctx"); c.style.display = "block";
-  c.style.left = Math.min(e.clientX, innerWidth - 200) + "px"; c.style.top = Math.min(e.clientY, innerHeight - 150) + "px";
+  c.style.left = Math.min(e.clientX, innerWidth - 200) + "px"; c.style.top = Math.max(0, Math.min(e.clientY, innerHeight - c.offsetHeight - 4)) + "px";
 });
 // keyboard
 document.addEventListener("keydown", e => {
@@ -1237,6 +1339,7 @@ async function start() {
   try {
     info = await api("/info"); $("s-dir").textContent = dirLabel(); applyInfo();
     if (info.lang && info.lang !== lang) setLang(info.lang, false);
+    loadSched();
   } catch { /* promptToken shown on 401 */ }
   refresh(); setInterval(refresh, 1000);
 }

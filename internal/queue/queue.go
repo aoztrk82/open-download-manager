@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -32,8 +33,12 @@ type AddRequest struct {
 	Request  proto.Request `json:"request"`
 	Dir      string        `json:"dir,omitempty"`
 	Filename string        `json:"filename,omitempty"`
-	// Paused adds it without starting (the download dialog's "Later").
+	// Paused adds it without starting.
 	Paused bool `json:"paused,omitempty"`
+	// Queue: "" starts as soon as a slot is free; store.QueueMain runs one
+	// after another; store.QueueLater waits for the later queue (start button
+	// or schedule). A queue wins over Paused (older clients send both).
+	Queue string `json:"queue,omitempty"`
 }
 
 type Config struct {
@@ -50,6 +55,11 @@ type Config struct {
 	ConnectionsFor func(host string) int
 	// Log is the download log (applog); nil = none.
 	Log *slog.Logger
+	// LaterDelay is the pause between two downloads of the later queue.
+	LaterDelay time.Duration
+	// LaterDue reports whether the later queue's schedule fell between two
+	// scheduler ticks (Settings > Queue); nil = no schedule.
+	LaterDue func(prev, now time.Time) bool
 }
 
 type Manager struct {
@@ -59,12 +69,19 @@ type Manager struct {
 
 	mu      sync.Mutex
 	active  map[string]context.CancelFunc
-	live    map[string]engine.State // latest snapshot of running downloads (connections view)
-	wake    chan struct{}
-	subs    map[chan Event]struct{}
-	ctx     context.Context
-	stop    context.CancelFunc
-	stopped sync.WaitGroup
+	activeQ map[string]string // running download -> its queue ("" = none)
+	// The later queue runs while laterRunning; laterNext holds the next start
+	// back for LaterDelay after each download.
+	laterRunning bool
+	laterNext    time.Time
+	lastTick     time.Time
+	live         map[string]engine.State // latest snapshot of running downloads (connections view)
+	wake         chan struct{}
+	subs         map[chan Event]struct{}
+	ctx          context.Context
+	stop         context.CancelFunc
+	stopped      sync.WaitGroup
+	posMu        sync.Mutex // queue positions are handed out one at a time
 }
 
 func New(cfg Config, st *store.Store, eng *engine.Engine) *Manager {
@@ -74,11 +91,12 @@ func New(cfg Config, st *store.Store, eng *engine.Engine) *Manager {
 	ctx, stop := context.WithCancel(context.Background())
 	return &Manager{
 		cfg: cfg, store: st, engine: eng,
-		active: map[string]context.CancelFunc{},
-		live:   map[string]engine.State{},
-		wake:   make(chan struct{}, 1),
-		subs:   map[chan Event]struct{}{},
-		ctx:    ctx, stop: stop,
+		active:  map[string]context.CancelFunc{},
+		activeQ: map[string]string{},
+		live:    map[string]engine.State{},
+		wake:    make(chan struct{}, 1),
+		subs:    map[chan Event]struct{}{},
+		ctx:     ctx, stop: stop,
 	}
 }
 
@@ -152,11 +170,16 @@ func (m *Manager) Add(r AddRequest) (*store.Download, error) {
 		}
 	}
 	status := store.Queued
-	if r.Paused {
+	if r.Paused && r.Queue == "" {
 		status = store.Paused
 	}
 	d := &store.Download{
-		ID: newID(), Req: r.Request, Dir: dir, Filename: r.Filename, Status: status,
+		ID: newID(), Req: r.Request, Dir: dir, Filename: r.Filename, Status: status, Queue: r.Queue,
+	}
+	if r.Queue != "" {
+		m.posMu.Lock()
+		defer m.posMu.Unlock()
+		d.QPos = m.nextPos(r.Queue)
 	}
 	if err := m.store.Save(d); err != nil {
 		return nil, err
@@ -213,6 +236,14 @@ func (m *Manager) Resume(id string) error {
 	}
 	if d.Status == store.Completed || d.Status == store.Active {
 		return nil
+	}
+	// Resuming one download of a stopped later queue means "this one, now":
+	// it leaves the queue instead of waiting for the queue to be started.
+	if d.Queue == store.QueueLater && !m.LaterRunning() {
+		if err := m.store.SetQueue(id, "", 0); err != nil {
+			return err
+		}
+		d.Queue, d.QPos = "", 0
 	}
 	m.log().Info("resume", "id", id, "was", d.Status)
 	d.Status, d.Error = store.Queued, ""
@@ -305,48 +336,105 @@ func (m *Manager) loop() {
 	}
 }
 
+// schedule starts what may start now:
+//   - downloads in no queue, up to MaxConcurrent at once;
+//   - the main queue, one at a time in queue order;
+//   - the later queue, one at a time while it runs (started by hand or by its
+//     schedule), with LaterDelay between two downloads; it stops itself when
+//     nothing is left.
 func (m *Manager) schedule(workers *sync.WaitGroup) {
+	now := time.Now()
+	cfg := m.config()
 	m.mu.Lock()
-	free := m.cfg.MaxConcurrent - len(m.active)
+	prev := m.lastTick
+	m.lastTick = now
 	m.mu.Unlock()
-	if free <= 0 {
-		return
+	if cfg.LaterDue != nil && !prev.IsZero() && cfg.LaterDue(prev, now) {
+		m.StartLater("schedule")
 	}
+
 	all, err := m.store.List()
 	if err != nil {
 		return
 	}
+	var free, main, later []*store.Download
 	for _, d := range all {
-		if free <= 0 {
-			break
-		}
 		if d.Status != store.Queued {
 			continue
 		}
+		switch d.Queue {
+		case store.QueueMain:
+			main = append(main, d)
+		case store.QueueLater:
+			later = append(later, d)
+		default:
+			free = append(free, d)
+		}
+	}
+	byPos := func(l []*store.Download) {
+		sort.SliceStable(l, func(i, j int) bool { return l[i].QPos < l[j].QPos })
+	}
+	byPos(main)
+	byPos(later)
+
+	m.mu.Lock()
+	running := map[string]int{}
+	for id := range m.active {
+		running[m.activeQ[id]]++
+	}
+	slots := m.cfg.MaxConcurrent - running[""]
+	laterOn, laterWait := m.laterRunning, now.Before(m.laterNext)
+	if laterOn && len(later) == 0 && running[store.QueueLater] == 0 {
+		m.laterRunning = false // all done
+	}
+	m.mu.Unlock()
+	if laterOn && len(later) == 0 && running[store.QueueLater] == 0 {
+		m.log().Info("later queue finished")
+	}
+
+	var start []*store.Download
+	for _, d := range free {
+		if slots <= 0 {
+			break
+		}
+		start = append(start, d)
+		slots--
+	}
+	if running[store.QueueMain] == 0 && len(main) > 0 {
+		start = append(start, main[0])
+	}
+	if laterOn && !laterWait && running[store.QueueLater] == 0 && len(later) > 0 {
+		start = append(start, later[0])
+	}
+	for _, d := range start {
 		m.mu.Lock()
-		_, running := m.active[d.ID]
-		if running {
+		if _, ok := m.active[d.ID]; ok {
 			m.mu.Unlock()
 			continue
 		}
 		ctx, cancel := context.WithCancel(m.ctx)
 		m.active[d.ID] = cancel
+		m.activeQ[d.ID] = d.Queue
 		m.mu.Unlock()
 		d.Status = store.Active
 		_ = m.save(d)
-		free--
 		workers.Add(1)
 		go func(d *store.Download) {
 			defer workers.Done()
 			m.run(ctx, d)
 			m.mu.Lock()
+			q := m.activeQ[d.ID] // moves while it ran are recorded there
 			delete(m.active, d.ID)
+			delete(m.activeQ, d.ID)
+			if q == store.QueueLater && m.laterRunning {
+				m.laterNext = time.Now().Add(m.cfg.LaterDelay)
+				time.AfterFunc(m.cfg.LaterDelay, m.kick) // start the next one on time, not at the next tick
+			}
 			m.mu.Unlock()
 			m.kick()
 		}(d)
 	}
 }
-
 func (m *Manager) run(ctx context.Context, d *store.Download) {
 	var last time.Time // zero: the first progress callback persists the file path right away
 	// The engine gets its own copy and is the only one writing it. Handing it
@@ -408,6 +496,8 @@ func (m *Manager) run(ctx context.Context, d *store.Download) {
 		d.Status = store.Queued // shutdown: resume on next start
 	case ctx.Err() != nil && cur != nil && cur.Status == store.Paused:
 		d.Status = store.Paused
+	case ctx.Err() != nil && cur != nil && cur.Status == store.Queued:
+		d.Status = store.Queued // its queue was stopped: it goes first when started again
 	default:
 		d.Status, d.Error = store.Failed, err.Error()
 	}

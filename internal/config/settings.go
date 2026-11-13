@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Settings are the choices in the Settings dialog (local daemon only). They
@@ -39,11 +40,27 @@ type Settings struct {
 	Connections     int         `json:"connections"`
 	HostConnections []HostLimit `json:"hostConnections"`
 	SpeedLimit      int64       `json:"speedLimit"` // KiB/s per download, 0 = unlimited
+	// LaterDelay is the pause in seconds between two downloads of the later
+	// queue; Schedule starts that queue by itself.
+	LaterDelay int      `json:"laterDelay"`
+	Schedule   Schedule `json:"schedule"`
+
 	// Log keeps the download log (<config>/logs/odm.log, rotated): what was
 	// asked, what servers answered, why downloads failed.
 	Log        bool  `json:"log"`
 	TotalLimit int64 `json:"totalLimit"` // KiB/s for all downloads together, 0 = unlimited
 }
+
+// Schedule starts the later queue at a date and time ("2026-11-14T02:00",
+// local time, as an <input type=datetime-local> gives it), or every day at
+// that time.
+type Schedule struct {
+	Enabled bool   `json:"enabled"`
+	At      string `json:"at"`
+	Daily   bool   `json:"daily"`
+}
+
+const scheduleLayout = "2006-01-02T15:04"
 
 // Category is a group of file extensions with its own folder.
 type Category struct {
@@ -84,6 +101,7 @@ func DefaultSettings() Settings {
 		ShowProgress: true,
 		ShowComplete: true,
 		Log:          true,
+		LaterDelay:   60,
 	}
 	for _, id := range CategoryIDs {
 		d := categoryDefaults[id]
@@ -119,6 +137,14 @@ func (s Settings) Normalize() (Settings, error) {
 	}
 	if s.Connections < 0 || s.Connections > ConnectionsLimit {
 		return s, fmt.Errorf("connections must be 0 (automatic) or 1..%d", ConnectionsLimit)
+	}
+	if s.LaterDelay < 0 || s.LaterDelay > 24*3600 {
+		return s, errors.New("the wait between downloads must be 0..86400 seconds")
+	}
+	if s.Schedule.Enabled {
+		if _, err := time.ParseInLocation(scheduleLayout, s.Schedule.At, time.Local); err != nil {
+			return s, errors.New("the schedule needs a date and time")
+		}
 	}
 	if s.SpeedLimit < 0 || s.TotalLimit < 0 {
 		return s, errors.New("speed limits cannot be negative")
@@ -268,6 +294,33 @@ func (s Settings) CategoryDir(c Category) string {
 		return c.Dir
 	}
 	return filepath.Join(s.Dir(), CategoryFolder(c.ID))
+}
+
+// LaterDue reports whether the scheduled start fell in (prev, now]: the
+// scheduler checks every few seconds, and a start missed while ODM was not
+// running is not made up later.
+func (s Settings) LaterDue(prev, now time.Time) bool {
+	if !s.Schedule.Enabled {
+		return false
+	}
+	at, err := time.ParseInLocation(scheduleLayout, s.Schedule.At, time.Local)
+	if err != nil {
+		return false
+	}
+	in := func(t time.Time) bool { return t.After(prev) && !t.After(now) }
+	if !s.Schedule.Daily {
+		return in(at)
+	}
+	if now.Before(at) {
+		return false // a daily schedule begins on its first date
+	}
+	for _, day := range []time.Time{prev, now} { // the tick may cross midnight
+		y, m, d := day.Date()
+		if in(time.Date(y, m, d, at.Hour(), at.Minute(), 0, 0, time.Local)) {
+			return true
+		}
+	}
+	return false
 }
 
 // ConnectionsFor is the connection ceiling for a host (0 = automatic).

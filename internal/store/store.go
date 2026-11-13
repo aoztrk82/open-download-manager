@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -34,10 +35,21 @@ type Download struct {
 	Size       int64         `json:"size"`
 	Downloaded int64         `json:"downloaded"`
 	Error      string        `json:"error,omitempty"`
-	State      engine.State  `json:"-"`
-	CreatedAt  time.Time     `json:"createdAt"`
-	UpdatedAt  time.Time     `json:"updatedAt"`
+	// Queue is "" (starts as soon as a slot is free), QueueMain (one after
+	// another) or QueueLater (waits until the later queue is started by hand or
+	// by its schedule). QPos orders a queue; smaller runs first.
+	Queue     string       `json:"queue,omitempty"`
+	QPos      int64        `json:"qpos,omitempty"`
+	State     engine.State `json:"-"`
+	CreatedAt time.Time    `json:"createdAt"`
+	UpdatedAt time.Time    `json:"updatedAt"`
 }
+
+// Queues a download can be in.
+const (
+	QueueMain  = "main"
+	QueueLater = "later"
+)
 
 var ErrNotFound = errors.New("download not found")
 
@@ -71,6 +83,12 @@ func Open(path string) (*Store, error) {
 	if _, err := db.Exec(schema); err != nil {
 		return nil, err
 	}
+	// Columns added after the first release: older databases get them here.
+	for _, col := range []string{"queue TEXT NOT NULL DEFAULT ''", "qpos INTEGER NOT NULL DEFAULT 0"} {
+		if _, err := db.Exec(`ALTER TABLE downloads ADD COLUMN ` + col); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+			return nil, err
+		}
+	}
 	return &Store{db: db}, nil
 }
 
@@ -85,24 +103,24 @@ func (s *Store) Save(d *Download) error {
 	}
 	d.UpdatedAt = now
 	_, err := s.db.Exec(`
-INSERT INTO downloads (id,req,dir,filename,status,size,downloaded,error,state,created_at,updated_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?)
+INSERT INTO downloads (id,req,dir,filename,status,size,downloaded,error,state,created_at,updated_at,queue,qpos)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET req=excluded.req, dir=excluded.dir, filename=excluded.filename,
   status=excluded.status, size=excluded.size, downloaded=excluded.downloaded, error=excluded.error,
   state=excluded.state, updated_at=excluded.updated_at`,
 		d.ID, string(req), d.Dir, d.Filename, string(d.Status), d.Size, d.Downloaded, d.Error,
-		string(st), d.CreatedAt.UnixMilli(), d.UpdatedAt.UnixMilli())
+		string(st), d.CreatedAt.UnixMilli(), d.UpdatedAt.UnixMilli(), d.Queue, d.QPos)
 	return err
 }
 
-const cols = `id,req,dir,filename,status,size,downloaded,error,state,created_at,updated_at`
+const cols = `id,req,dir,filename,status,size,downloaded,error,state,created_at,updated_at,queue,qpos`
 
 func scan(sc interface{ Scan(...any) error }) (*Download, error) {
 	var d Download
 	var req, st, status string
 	var created, updated int64
 	if err := sc.Scan(&d.ID, &req, &d.Dir, &d.Filename, &status, &d.Size, &d.Downloaded,
-		&d.Error, &st, &created, &updated); err != nil {
+		&d.Error, &st, &created, &updated, &d.Queue, &d.QPos); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -114,6 +132,20 @@ func scan(sc interface{ Scan(...any) error }) (*Download, error) {
 	d.Path = d.State.Path
 	d.CreatedAt, d.UpdatedAt = time.UnixMilli(created), time.UnixMilli(updated)
 	return &d, nil
+}
+
+// SetQueue changes only a download's queue and position. Save leaves both
+// alone on existing rows: a running download saves its own copy every second,
+// which must not undo a move made meanwhile.
+func (s *Store) SetQueue(id, queue string, pos int64) error {
+	r, err := s.db.Exec(`UPDATE downloads SET queue=?, qpos=? WHERE id=?`, queue, pos, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := r.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) Get(id string) (*Download, error) {

@@ -122,6 +122,12 @@ func watchDownloads(d *daemon) {
 			continue // progress tick
 		}
 		s := d.settings.Settings()
+		if x.Queue == store.QueueLater {
+			// The later queue runs unattended (often at night, on a schedule):
+			// no window for each of its downloads.
+			delete(resumed, x.ID)
+			continue
+		}
 		switch x.Status {
 		case store.Active:
 			if resumed[x.ID] {

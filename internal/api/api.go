@@ -148,6 +148,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/downloads/{id}/resume", s.act(s.Queue.Resume))
 	mux.HandleFunc("POST /v1/downloads/{id}/reveal", s.reveal)
 	mux.HandleFunc("POST /v1/downloads/{id}/open", s.openFile)
+	mux.HandleFunc("POST /v1/downloads/{id}/queue", s.setQueue)
+	mux.HandleFunc("POST /v1/downloads/{id}/move", s.moveInQueue)
+	mux.HandleFunc("GET /v1/queues", s.queues)
+	mux.HandleFunc("POST /v1/queues/later/start", s.laterStart)
+	mux.HandleFunc("POST /v1/queues/later/stop", s.laterStop)
 	mux.HandleFunc("DELETE /v1/downloads/{id}", s.remove)
 	mux.HandleFunc("GET /v1/events", s.events)
 	mux.HandleFunc("GET /v1/integrations", s.integrations)
@@ -350,6 +355,10 @@ func (s *Server) add(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Request.URL == "" {
 		writeErr(w, 400, "request.url is required")
+		return
+	}
+	if !queue.KnownQueue(req.Queue) {
+		writeErr(w, 400, "unknown queue "+strconv.Quote(req.Queue))
 		return
 	}
 	if m := req.Request.Media; m != nil {

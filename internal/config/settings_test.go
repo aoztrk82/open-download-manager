@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestNormalize(t *testing.T) {
@@ -100,5 +101,40 @@ func TestPrefsKeepDefaults(t *testing.T) {
 	p := LoadPrefs()
 	if p.Lang != "tr" || p.ShowComplete || !p.ShowProgress || p.MaxActive != 3 {
 		t.Fatalf("merged prefs: %+v", p)
+	}
+}
+
+func TestLaterDue(t *testing.T) {
+	at := time.Date(2026, 11, 14, 2, 0, 0, 0, time.Local)
+	s := DefaultSettings()
+	if s.LaterDelay != 60 {
+		t.Fatalf("default wait %d", s.LaterDelay)
+	}
+	s.Schedule = Schedule{Enabled: true, At: "2026-11-14T02:00"}
+	tick := func(t0 time.Time) bool { return s.LaterDue(t0.Add(-2*time.Second), t0) }
+	if !tick(at.Add(time.Second)) || tick(at.Add(-time.Minute)) || tick(at.Add(time.Hour)) {
+		t.Fatal("one-shot: fires once, at the time")
+	}
+	if tick(at.AddDate(0, 0, 1).Add(time.Second)) {
+		t.Fatal("one-shot fired again the next day")
+	}
+	s.Schedule.Daily = true
+	if !tick(at.AddDate(0, 0, 3).Add(time.Second)) || tick(at.AddDate(0, 0, -1).Add(time.Second)) {
+		t.Fatal("daily: every day from the first date on")
+	}
+	// A daily time at midnight, ticked across it.
+	s.Schedule.At = "2026-11-14T00:00"
+	mid := time.Date(2026, 11, 16, 0, 0, 0, 0, time.Local)
+	if !s.LaterDue(mid.Add(-time.Second), mid.Add(time.Second)) {
+		t.Fatal("daily at midnight missed")
+	}
+	s.Schedule.Enabled = false
+	if tick(at.Add(time.Second)) {
+		t.Fatal("disabled schedule fired")
+	}
+	bad := DefaultSettings()
+	bad.Schedule = Schedule{Enabled: true, At: "tomorrow"}
+	if _, err := bad.Normalize(); err == nil {
+		t.Fatal("bad time accepted")
 	}
 }
